@@ -1,7 +1,8 @@
 """Shared optimizer simulation engine for dynamics visualizations and sweeps."""
 
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 import math
+import re
 from typing import Any
 
 import torch
@@ -173,6 +174,9 @@ class OptimizerSpec:
     tie_mass: bool = True
     foreach: bool = True
     label: str | None = None
+    display_label: str | None = None
+    instance_id: str | None = None
+    color: str | None = None
     noise_slot: int | None = None
     noise_stride: int | None = None
 
@@ -190,7 +194,7 @@ class OptimizerSpec:
         mode = str(values.get("update_mode", "coordinate"))
         mass_mode = str(values.get("mass_mode", "momentum_diff"))
         kinematics = str(values.get("kinematics", "minkowski"))
-        tie = _bool_value(data.get("tie_mass", not any(k in data for k in ("kappa", "beta_gravity"))))
+        tie = _bool_value(data.get("tie_mass", not any(k in data for k in ("kappa", "beta_gravity", "beta3"))))
         if name == "VectorMassiveLion":
             if _bool_value(data.get("adaptive_geometry", False)):
                 raise ValueError("Legacy VectorMassiveLion adaptive_geometry is unsupported; use MassiveLion vector mass adaptation")
@@ -222,18 +226,21 @@ class OptimizerSpec:
                 mass_mode, kappa, gravity = "momentum_diff", beta2, beta2
         return cls(
             name=name, lr=float(values["lr"]), momentum=beta2 if name in {"Signum", "MassiveSignum"} else float(values["momentum"]),
-            beta1=beta1, beta2=beta2, beta3=float(values.get("beta3", 0)),
+            beta1=beta1, beta2=beta2, beta3=(gravity if name in {"MassiveLion", "VectorMassiveLion", "MassiveSignum"} else float(values.get("beta3", 0))),
             mass=mass, weight_decay=float(values.get("weight_decay", 0)),
             eps=float(values.get("eps", 1e-8)), kappa=kappa, beta_gravity=gravity,
             update_mode=mode, mass_mode=mass_mode, kinematics=kinematics,
             adaptive_mass=adaptive, tie_mass=tie, foreach=_bool_value(values.get("foreach", True)),
-            label=data.get("label"), noise_slot=_optional_int(data.get("noise_slot")),
+            label=_optional_label(data.get("label"), "label"),
+            display_label=_optional_label(data.get("display_label"), "display_label"),
+            instance_id=_instance_id(data.get("instance_id")), color=_custom_color(data.get("color")),
+            noise_slot=_optional_int(data.get("noise_slot")),
             noise_stride=_optional_int(data.get("noise_stride")),
         )
 
     def display_name(self) -> str:
-        if self.label:
-            return self.label
+        if self.label or self.display_label:
+            return self.label or self.display_label
         if self.name == "MassiveLion":
             details = []
             if self.update_mode != "coordinate":
@@ -245,8 +252,6 @@ class OptimizerSpec:
         return self.display_family()
 
     def display_family(self) -> str:
-        if self.label in {"Lion", "Signum"}:
-            return self.label
         return self.name
 
     def color_name(self) -> str:
@@ -295,6 +300,9 @@ class Learner:
 		kinetic_regimes_supported = _supports_relativistic_kinetic(self.spec)
 		return {
 			"id": self.id,
+			"instance_id": self.spec.instance_id,
+			"label": self.spec.label,
+			"display_label": self.spec.display_label,
 			"name": self.spec.display_name(),
 			"optimizer": self.spec.name,
 			"color": self.color,
@@ -340,6 +348,7 @@ class SimulationState:
 		self.global_step = 0
 		self.serial_index = 0
 		self.ensemble_optimizer = "Lion"
+		self.ensemble_instance_id: str | None = None
 		self.ensemble_count = 25
 		self.optimizer_specs: list[OptimizerSpec] = []
 		self.learners: list[Learner] = []
@@ -371,6 +380,7 @@ class SimulationState:
 		self.serial_index = 0
 		self.ensemble_optimizer = canonical_optimizer_name(str(
 			config.get("ensemble_optimizer", "Lion")))
+		self.ensemble_instance_id = _instance_id(config.get("ensemble_instance_id"))
 		self.ensemble_count = max(1, min(250, int(config.get("ensemble_count", 25))))
 		self.optimizer_specs = [
 			OptimizerSpec.from_dict(item)
@@ -387,8 +397,14 @@ class SimulationState:
 				OptimizerSpec.from_dict({"name": "Adam"}),
 				OptimizerSpec.from_dict({"name": "SGD"}),
 			]
+		_assign_instance_identities(self.optimizer_specs)
 		_assign_noise_identities(self.optimizer_specs)
-		ensemble_spec = self._ensemble_spec(self.ensemble_optimizer)
+		ensemble_spec = self._ensemble_spec(self.ensemble_optimizer, self.ensemble_instance_id)
+		if ensemble_spec.instance_id is not None:
+			self.ensemble_instance_id = ensemble_spec.instance_id
+			self.ensemble_optimizer = ensemble_spec.display_family()
+		else:
+			ensemble_spec.instance_id = f"ensemble-{ensemble_spec.name}"
 		rho_specs = self.optimizer_specs
 		if self.mode == "ensemble":
 			rho_specs = self.optimizer_specs + [ensemble_spec]
@@ -420,8 +436,13 @@ class SimulationState:
 		return self.snapshot(include_landscape=True)
 
 	def step(self) -> dict[str, Any]:
+		self.advance()
+		return self.snapshot()
+
+	def advance(self) -> None:
+		"""Advance once without copying growing traces into a snapshot."""
 		if self.done:
-			return self.snapshot()
+			return
 
 		if self.mode == "serial":
 			self._step_serial()
@@ -430,8 +451,6 @@ class SimulationState:
 				if not learner.diverged and learner.local_step < self.max_steps:
 					self._step_learner(learner)
 			self.global_step += 1
-
-		return self.snapshot()
 
 	@property
 	def done(self) -> bool:
@@ -455,6 +474,8 @@ class SimulationState:
 			"noise": self.noise.as_dict(),
 			"rho_ref": self.rho_ref,
 			"ensemble_optimizer": self.ensemble_optimizer,
+			"ensemble_instance_id": self.ensemble_instance_id,
+			"optimizers": [asdict(spec) for spec in self.optimizer_specs],
 			"ensemble_count": self.ensemble_count,
 			"learners": [learner.snapshot() for learner in self.learners],
 		}
@@ -492,7 +513,12 @@ class SimulationState:
 		)
 		self.learners.append(learner)
 
-	def _ensemble_spec(self, name: str) -> OptimizerSpec:
+	def _ensemble_spec(self, name: str, instance_id: str | None = None) -> OptimizerSpec:
+		if instance_id is not None:
+			for spec in self.optimizer_specs:
+				if spec.instance_id == instance_id:
+					return spec
+			raise ValueError(f"Unknown ensemble_instance_id: {instance_id!r}")
 		name = canonical_optimizer_name(name)
 		for spec in self.optimizer_specs:
 			if _matches_optimizer_request(spec, name):
@@ -526,9 +552,9 @@ class SimulationState:
 		slot = index if slot is None else slot
 		stride = max(slot + 1, 1) if stride is None else stride
 		learner = Learner(
-			id=f"learner-{index}",
+			id=(f"{spec.instance_id}:member-{index + 1}" if self.mode == "ensemble" else spec.instance_id),
 			spec=spec,
-			color=optimizer_color(spec.color_name(), COLORS[index % len(COLORS)]),
+			color=spec.color or optimizer_color(spec.color_name(), COLORS[index % len(COLORS)]),
 			noise_slot=slot,
 			noise_stride=max(1, stride, slot + 1),
 			theta=param,
@@ -760,6 +786,47 @@ def defaults_payload() -> dict[str, Any]:
 	}
 
 
+def _optional_label(value: Any, field_name: str) -> str | None:
+	if value is None:
+		return None
+	if not isinstance(value, str) or any(ord(char) < 32 for char in value):
+		raise ValueError(f"{field_name} must be plain single-line text")
+	return value.strip() or None
+
+
+def _instance_id(value: Any) -> str | None:
+	if value is None or value == "":
+		return None
+	if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", value):
+		raise ValueError("instance_id must be a nonempty identifier using letters, numbers, ., _, :, or -")
+	return value
+
+
+def _custom_color(value: Any) -> str | None:
+	if value is None or value == "":
+		return None
+	if not isinstance(value, str) or not re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", value):
+		raise ValueError("color must use #RGB or #RRGGBB hexadecimal notation")
+	value = value.lower()
+	return "#" + "".join(char * 2 for char in value[1:]) if len(value) == 4 else value
+
+
+def _assign_instance_identities(specs: list[OptimizerSpec]) -> None:
+	used = set()
+	for spec in specs:
+		if spec.instance_id is not None:
+			if spec.instance_id in used:
+				raise ValueError(f"Duplicate optimizer instance_id: {spec.instance_id!r}")
+			used.add(spec.instance_id)
+	for index, spec in enumerate(specs):
+		if spec.instance_id is None:
+			number = index + 1
+			while f"optimizer-{number}" in used:
+				number += 1
+			spec.instance_id = f"optimizer-{number}"
+			used.add(spec.instance_id)
+
+
 def _optional_int(value: Any) -> int | None:
 	if value is None:
 		return None
@@ -786,7 +853,7 @@ def normalize_optimizer_spec(spec: OptimizerSpec) -> OptimizerSpec:
 		spec,
 		name=MASSLESS_OPTIMIZER_BACKENDS[display_name],
 		mass=0.0,
-		label=spec.label or display_name,
+		label=spec.label,
 	)
 
 

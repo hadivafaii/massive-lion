@@ -24,10 +24,14 @@ python -m pip install -e ".[lab]"
 python -m dynamics_lab.interactive --port 8011
 ```
 
-Then open:
+The Lab opens automatically in your default browser at
+[http://127.0.0.1:8011](http://127.0.0.1:8011). The tab is titled **Dynamics Lab**
+and has a red optimization icon. The server also prints its URL in the terminal.
 
-```text
-http://127.0.0.1:8011
+To start the server without opening a browser, add `--no-browser`:
+
+```bash
+python -m dynamics_lab.interactive --port 8011 --no-browser
 ```
 
 If that port is already busy, choose another one:
@@ -40,6 +44,10 @@ Do not open `dynamics_lab/interactive.html` directly from Finder or with a
 `file://` URL. The page will load, but the simulation API will not be available.
 
 To stop the server, press `Ctrl-C` in the terminal where it is running.
+
+After updating the code, export any settings you want to keep, stop the server
+with `Ctrl-C`, and run the launch command again. Reload the page and import your
+settings so the browser and Python server use the same version.
 
 ## Export MP4 Videos
 
@@ -69,8 +77,15 @@ the next optimizer starts:
 python -m dynamics_lab.make_video curved_valley_2d --mode serial --serial-history replace
 ```
 
-Ensemble videos can override the exported optimizer choice and random-start
-count without editing the JSON:
+Ensemble videos use the saved optimizer instance and its parameters. To select
+another row, pass its `instance_id` from the exported JSON:
+
+```bash
+python -m dynamics_lab.make_video comparison.json --mode ensemble --ensemble-instance-id optimizer-2 --ensemble-count 50
+```
+
+The legacy optimizer-type override also remains available. It selects the first
+matching row and replaces a saved instance selection:
 
 ```bash
 python -m dynamics_lab.make_video curved_valley_2d --mode ensemble --ensemble-optimizer MassiveLion --ensemble-count 50
@@ -128,10 +143,11 @@ without changing optimizer dynamics.
 `Export`
 : Opens the normal browser save dialog for a JSON snapshot of the current
 settings. The suggested filename is based on the landscape type and timestamp.
-The JSON includes optimizer order and parameters, landscape and noise settings,
-run mode, ensemble convergence controls, display controls, camera state, and
-color overrides. The browser chooses the save location; if you want configs in
-the repo, save them under a repo-local config folder such as
+The JSON includes optimizer order and parameters, stable instance IDs, custom
+names and colors, landscape and noise settings, run mode, ensemble selection,
+convergence controls, display controls, and camera state. The browser chooses
+the save location; if you want configs in the repo, save them under a repo-local
+config folder such as
 `dynamics_lab/presets`.
 
 `Import`
@@ -165,9 +181,10 @@ still starts from the same configured initial point. `ensemble` runs many random
 initializations of one selected optimizer.
 
 `ensemble optimizer`
-: Optimizer type used in `ensemble` mode. If an optimizer row with that type is
-present, its current parameters are used. Otherwise the built-in defaults are
-used.
+: The optimizer instance used for every random start. Entries use the same
+titles as their rows, so two instances of one optimizer can be selected
+independently. The chosen row supplies its parameters and color. Older exports
+that select an optimizer type still use the first matching row or its defaults.
 
 `random starts`
 : Number of ensemble learners. Initial points are drawn uniformly from the
@@ -222,6 +239,22 @@ positive local Hessian eigenvalues at the sampled optimum.
 
 ## Optimizer controls
 
+Each row is an independent optimizer instance. Use `Add optimizer` or a row's
+`Copy` button to compare copies of the same algorithm with different settings. Automatic titles
+show the settings that distinguish same-family rows; identical copies receive
+numbered titles. The suggestion is editable text: change any part to keep a
+custom title, or clear it and leave the field to restore automatic naming.
+Optimizer choices are listed alphabetically. Row colors, names, order, and instance identity survive
+export/import and video rendering. Videos show the landscape trajectories;
+they do not add the browser's legends or control panels.
+
+The beta labels describe the Lab controls; JSON keys and training APIs are
+unchanged. Standard `Adam`/`AdamW` show `beta_mom` for first-moment decay (`beta1`)
+and `beta_var` for second-moment decay (`beta2`). Other two-beta rows show
+`beta_mix` (`beta1`) and `beta_mom` (`beta2`); their algorithm-specific roles still
+apply, including the moment decays of CautiousAdamW and VRAdam. A direct
+`momentum` control, such as SGD's, is displayed as `beta_mom`.
+
 The lab uses the installed PyTorch optimizers. It never reimplements their
 update rules in JavaScript. Display traces and momentum histograms are computed
 by the simulation engine; the optimizer itself has no research diagnostic hooks.
@@ -234,13 +267,13 @@ by the simulation engine; the optimizer itself has no research diagnostic hooks.
 | Control | Meaning |
 | --- | --- |
 | learning rate | Step scale; one learning-rate unit per iteration is speed 1 in the plots. |
-| beta1 | Gradient mixing: direction = beta1 × previous momentum + (1 − beta1) × gradient. |
-| beta2 | Stored momentum EMA decay. |
+| beta_mix | Gradient mixing: direction = beta_mix × previous momentum + (1 − beta_mix) × gradient. |
+| beta_mom | Stored momentum EMA decay for the Lion family. |
 | mass/rho | Nonnegative baseline rest mass. Zero rest mass can still have adaptive mass. |
 | adaptive mass | Enable mass adaptation; off gives a constant rest mass. |
-| tie mass parameters to beta2 | Paper setting: kappa = mass-memory decay = beta2. |
+| tie mass parameters to beta_mom | Paper setting: kappa = mass-memory decay = beta_mom. Untie to edit each independently. |
 | kappa | Advanced nonnegative scale for the squared innovation, editable when untied. |
-| gravity decay | Advanced mass-memory EMA decay in [0, 1), editable when untied. |
+| beta_gravity | Advanced mass-memory EMA decay in [0, 1), editable when untied. |
 | mass recurrence | `momentum_diff` uses gradient − previous momentum (paper); `gradient_diff` uses consecutive gradient differences, with first innovation zero. |
 | update mode | `coordinate` uses coordinatewise masses/speed bounds; `vector` uses a scalar mass and L2 speed ≤ 1; `vector_rms` uses a scalar mass and RMS speed ≤ 1. |
 | kinematics | Minkowski, arctan, or tanh; maps share unit slope at the origin and saturation at ±1. |
@@ -254,7 +287,7 @@ momentum norm/RMS divided by effective mass; coordinate modes use signed p1/rho.
 `Lion` fixes mass to zero and disables adaptation. `Signum` additionally ties
 both betas to the momentum control. `MassiveSignum` keeps that equal-beta
 constraint and exposes rest mass and the paper adaptive-mass toggle.
-`SecretSauceAdamW` fixes both betas to beta2, rest mass and epsilon to zero,
+`SecretSauceAdamW` fixes both betas to beta_mom, rest mass and epsilon to zero,
 and coordinate Minkowski momentum-difference adaptation with tied decay and
 coupling, without bias correction. An imported config claiming this name but
 requesting an incompatible reduction is rejected rather than mislabeled.
@@ -269,12 +302,19 @@ RLion is a thin wrapper of MassiveLion with fixed coordinate arctan kinematics.
 It converts its original native mass to the shared reference mass by multiplying
 by pi/2; the MassiveLion arctan option uses the common unit-slope convention.
 
-Shared learning rate and matched parameters synchronize applicable row controls.
-The shared memory control affects beta2 for Lion-family optimizers, beta1 for
-Adam-family optimizers/Muon, and momentum for SGD/Signum. Shared gradient
-injection affects beta1 for mixed-momentum variants. Shared variance controls
-Adam-family beta2 and curvature-aware AdamW beta3. MassiveLion's own tied/untied
-mass controls remain explicit. Drag rows to change their serial order.
+Three independent checkboxes control sharing: `shared learning rate`,
+`shared mass/rho`, and `shared betas`. Each synchronizes only its corresponding
+row controls. Turning one off disables and dims its global inputs and unlocks
+the applicable row inputs at their current values. The other sharing switches
+are unaffected.
+
+`shared mass/rho` shares only baseline rest mass. Kappa and `beta_gravity`
+remain governed by each row's adaptive-mass and mass-tying controls.
+`shared betas` follows parameter roles: shared `beta_mom` writes JSON `beta2`
+for Lion-family optimizers, `beta1` for Adam-family optimizers/Muon, and
+`momentum` for SGD/Signum. Shared `beta_mix` affects `beta1` for mixed-momentum
+variants; shared variance controls Adam-family `beta2` and curvature-aware
+AdamW `beta3`. Drag rows to change their serial order.
 
 ## Saved presets and compatibility
 
@@ -286,6 +326,13 @@ default when imported.
 
 Exports use schema version 2 and preserve adaptive mass, tying, recurrence,
 kinematics, update mode, foreach, noise identity, camera, and display options.
+Each optimizer row also retains its stable `instance_id`, custom `label` (when
+set), and `color`; `ensemble_instance_id` identifies the selected row. Legacy
+rows without IDs receive distinct IDs when loaded. Automatic titles are
+recomputed from the imported settings, while custom names remain unchanged.
+`controls.shared_mass` records rest-mass sharing; `controls.shared_beta` records
+beta sharing only. Older exports without `shared_mass` use their saved
+`shared_beta` state for mass sharing too, preserving their previous behavior.
 Schema version 1 imports preserve fixed-mass legacy MassiveLion/Signum runs and
 recognize `GRLion`/`gr_lion` as the current `MassiveLion`. Legacy vector configs
 with `adaptive_geometry=true` are rejected: the old diagonal preconditioner is
@@ -522,8 +569,8 @@ and tune the starting point so the trajectory repeatedly crosses the valley
 wall.
 
 To isolate curvature-aware dissipation from clipping, compare
-`CurvatureAwareSGD` against SGD and Lion with shared learning rate and
-`share momentum, injection, and mass` enabled. Comparing Lion/MassiveLion
+`CurvatureAwareSGD` against SGD and Lion with `shared learning rate` and
+`shared betas` enabled. Comparing Lion/MassiveLion
 against Signum still shows the same injection inside the bounded family. The
 default sloped-ravine setup is tuned to make the resulting oscillatory
 differences visible.

@@ -1,0 +1,4 @@
+# PyTorch is installed separately from its CPU wheel index in Docker.
+numpy==2.5.3
+fastapi==0.142.2
+uvicorn==0.54.0

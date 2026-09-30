@@ -62,6 +62,7 @@ def save_dynamics_lab_video(
 		figsize: tuple[float, float] = (6.4, 4.8),
 		macro_block_size: int = 16,
 		progress: bool = True,
+		ensemble_instance_id: str | None = None,
 ) -> Path:
 	"""Run an exported dynamics-lab config and save the landscape panel as MP4."""
 	payload_path = resolve_config_path(config_name)
@@ -71,6 +72,7 @@ def save_dynamics_lab_video(
 		mode=mode,
 		ensemble_optimizer=ensemble_optimizer,
 		ensemble_count=ensemble_count,
+		ensemble_instance_id=ensemble_instance_id,
 	)
 	controls = dict(payload.get("controls", {}))
 	view = resolve_view(view, controls)
@@ -156,6 +158,7 @@ def config_from_payload(
 		mode: Literal["parallel", "serial", "ensemble"] | None = None,
 		ensemble_optimizer: str | None = None,
 		ensemble_count: int | None = None,
+		ensemble_instance_id: str | None = None,
 ) -> dict[str, Any]:
 	config = copy.deepcopy(payload.get("config", payload))
 	if payload.get("schema_version", 1) == 1:
@@ -175,6 +178,10 @@ def config_from_payload(
 		config["mode"] = mode
 	if ensemble_optimizer is not None:
 		config["ensemble_optimizer"] = str(ensemble_optimizer)
+		# A legacy type override must replace a saved instance selection.
+		config.pop("ensemble_instance_id", None)
+	if ensemble_instance_id is not None:
+		config["ensemble_instance_id"] = str(ensemble_instance_id)
 	if ensemble_count is not None:
 		ensemble_count = int(ensemble_count)
 		if not 1 <= ensemble_count <= 250:
@@ -603,12 +610,25 @@ def apply_color_overrides(snapshot: dict[str, Any], controls: dict[str, Any]) ->
 	if not overrides:
 		return snapshot
 	snapshot = dict(snapshot)
+	row_indices = {
+		spec.get("instance_id"): index
+		for index, spec in enumerate(snapshot.get("optimizers", []))
+	}
 	learners = []
-	for learner in snapshot.get("learners", []):
+	for index, learner in enumerate(snapshot.get("learners", [])):
 		learner = dict(learner)
-		key = learner.get("name") if snapshot.get("mode") == "ensemble" else learner.get("id")
-		if key in overrides:
-			learner["color"] = overrides[key]
+		instance_id = learner.get("instance_id")
+		if snapshot.get("mode") == "ensemble":
+			legacy_keys = (learner.get("name"), f"learner-{index}", learner.get("optimizer"))
+		else:
+			row_index = row_indices.get(instance_id, index)
+			legacy_keys = (f"learner-{row_index}",)
+		# Current row identities take precedence; older exports used learner-N
+		# in parallel/serial mode and the optimizer title in ensemble mode.
+		for key in (instance_id, learner.get("id"), *legacy_keys):
+			if key in overrides:
+				learner["color"] = overrides[key]
+				break
 		learners.append(learner)
 	snapshot["learners"] = learners
 	return snapshot
@@ -649,7 +669,8 @@ def default_output_path(
 	resolved_mode = mode or str(config.get("mode", "parallel"))
 	stem = f"{payload_path.stem}_{resolved_mode}"
 	if resolved_mode == "ensemble":
-		stem = f"{stem}_{safe_file_part(config.get('ensemble_optimizer', 'optimizer'))}"
+		selection = config.get("ensemble_instance_id") or config.get("ensemble_optimizer", "optimizer")
+		stem = f"{stem}_{safe_file_part(selection)}"
 	return VIDEO_DIR / f"{stem}.mp4"
 
 
@@ -677,6 +698,7 @@ def main() -> None:
 		serial_history=args.serial_history,
 		ensemble_optimizer=args.ensemble_optimizer,
 		ensemble_count=args.ensemble_count,
+		ensemble_instance_id=args.ensemble_instance_id,
 		view=args.view,
 		fps=args.fps,
 		frame_stride=args.frame_stride,
@@ -703,7 +725,11 @@ def parse_args() -> argparse.Namespace:
 	parser.add_argument(
 		"--ensemble-optimizer",
 		default=None,
-		help="Override config.ensemble_optimizer for ensemble mode.")
+		help="Select by optimizer type (legacy); replaces a saved instance selection.")
+	parser.add_argument(
+		"--ensemble-instance-id",
+		default=None,
+		help="Select an exported optimizer row by instance_id; takes precedence over type.")
 	parser.add_argument(
 		"--ensemble-count",
 		type=int,

@@ -31,7 +31,9 @@ python -m pip install -e ".[lab,test]"
 python -m dynamics_lab.interactive --port 8011
 ```
 
-Open [the lab](http://127.0.0.1:8011), click Import, and choose one of these files.
+The Lab opens in your default browser. Click Import and choose one of these
+files. Add `--no-browser` to skip the automatic launch; the local URL is still
+printed in the terminal.
 To render a compact video or check that every saved preset runs:
 
 ```bash

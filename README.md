@@ -80,8 +80,9 @@ Start with [the equations and option guide](docs/optimizer.md), then read
 python -m dynamics_lab.interactive --port 8011
 ```
 
-Open **http://127.0.0.1:8011**. Compare trajectories on 2D/3D landscapes, vary
-noise and initial conditions, inspect velocities and momentum distributions,
+The Lab opens in your default browser and prints its local URL. Add
+`--no-browser` to skip the automatic launch. Compare trajectories on 2D/3D
+landscapes, vary noise and initial conditions, inspect velocities and momentum distributions,
 run ensembles, and import/export presets. The Lab runs the actual PyTorch
 optimizers through a local server. [Lab guide](docs/dynamics_lab.md).
 

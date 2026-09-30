@@ -3,7 +3,9 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title>Optimizer Kinematics Simulator</title>
+	<title>Dynamics Lab</title>
+	<link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48 64x64">
+	<link rel="icon" href="/favicon.svg" type="image/svg+xml" sizes="any">
 	<style>
 		:root {
 			--bg: #f7f7f4;
@@ -269,6 +271,12 @@
 		label.locked {
 			opacity: 0.48;
 		}
+		.control-hint {
+			margin: 6px 0 10px;
+			color: var(--muted);
+			font-size: 11px;
+			line-height: 1.4;
+		}
 		label.fixed {
 			opacity: 1;
 		}
@@ -309,10 +317,14 @@
 		}
 		.row-head {
 			display: grid;
-			grid-template-columns: 28px 1fr 34px;
+			grid-template-columns: 28px minmax(0, 1fr) auto 30px;
 			gap: 8px;
 			margin-bottom: 6px;
 		}
+        .row-title { grid-template-columns: 42px minmax(0, 1fr); }
+        .row-style { grid-template-columns: 1fr 52px; }
+        .opt-color { height: 29px; padding: 2px; }
+        .opt-auto-title { display: block; color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 		.drag-handle {
 			display: inline-flex;
 			align-items: center;
@@ -475,11 +487,13 @@
 				<legend>Optimizers</legend>
 				<label class="inline"><input id="shared_lr" type="checkbox" checked> shared learning rate</label>
 				<label>learning rate <input id="shared_lr_value" type="number" value="0.03" min="0" step="0.005"></label>
-				<label class="inline"><input id="shared_beta" type="checkbox" checked> share matched optimizer parameters</label>
-				<label title="Sets beta1 for Adam-family optimizers and Muon, beta2 for curvature/Lion families including SecretSauceAdamW, CautiousLion, CA-Muon, MassiveLion, and VectorMassiveLion, and momentum for SGD and Signum families">momentum / memory decay <input id="shared_momentum_value" type="number" value="0.99" min="0" max="0.999" step="0.01"></label>
-				<label title="Sets beta1 in d_t = beta1 m_(t-1) + (1-beta1) g_t">gradient injection (beta1) <input id="shared_gradient_injection_value" type="number" value="0.5" min="0" max="0.999" step="0.01"></label>
+				<label class="inline"><input id="shared_mass" type="checkbox" checked> shared mass/rho</label>
 				<label>mass/rho <input id="shared_mass_value" type="number" value="0.2" min="0" step="0.01"></label>
-				<label title="Sets beta2 for Adam-family second moments, beta3 for CurvatureAwareAdamW, MassiveLion mass parameters have their own tied or advanced controls. SecretSauceAdamW ties its mass decay to the momentum / memory beta2 instead.">variance / geometry decay <input id="shared_variance_value" type="number" value="0.999" min="0" max="0.999999999999" step="0.001"></label>
+				<label class="inline"><input id="shared_beta" type="checkbox" aria-describedby="shared_parameters_hint" checked> shared betas</label>
+				<p id="shared_parameters_hint" class="control-hint"></p>
+				<label title="Shares the momentum-memory decay across optimizers, including the first beta in standard Adam/AdamW and Muon.">beta_mom (memory) <input id="shared_momentum_value" type="number" value="0.99" min="0" max="0.999" step="0.01"></label>
+				<label title="Sets d_t = beta_mix m_(t-1) + (1-beta_mix) g_t for mixing optimizers.">beta_mix (mixing) <input id="shared_gradient_injection_value" type="number" value="0.5" min="0" max="0.999" step="0.01"></label>
+				<label title="Shares second-moment or legacy geometry decay. Adaptive mass has its own tied or independent controls.">beta_var / geometry decay <input id="shared_variance_value" type="number" value="0.999" min="0" max="0.999999999999" step="0.001"></label>
 				<div id="optimizerRows"></div>
 				<button id="addOptimizerBtn">Add optimizer</button>
 			</fieldset>
@@ -738,6 +752,7 @@ let needsReset = true;
 let stepping = false;
 let colorOverrides = {};
 let nextNoiseSlot = 0;
+let nextInstanceId = 1;
 let syncingConvergenceControls = false;
 const landscapeView = {
 	mode: "2d",
@@ -772,7 +787,13 @@ async function api(path, body = null) {
 	};
 	const response = await fetch(path, options);
 	if (!response.ok) { const error = await response.json(); throw new Error(error.error || `${path} failed`); }
-	return await response.json();
+	const payload = await response.json();
+    if (["/api/reset", "/api/step", "/api/state"].includes(path) &&
+        (!Array.isArray(payload.learners) || payload.learners.some(learner =>
+            typeof learner.instance_id !== "string" || !learner.instance_id))) {
+        throw new Error("The Dynamics Lab server is running an older version. Export your settings, stop the server with Ctrl-C, restart it, then reload this page and import your settings.");
+    }
+	return payload;
 }
 
 function numberValue(id) {
@@ -864,8 +885,169 @@ function optimizerDefaults(name) {
 
 function optimizerDisplayNameFromSpec(spec) {
     const name = canonicalOptimizerName(spec.name ?? "Lion");
-    if (spec.label === "Lion" || spec.label === "Signum") return spec.label;
+    // Old saves used label to distinguish massless aliases; new labels are presentation only.
+    if (!spec.instance_id && ["Lion", "Signum"].includes(spec.label) &&
+        ["MassiveLion", "MassiveSignum"].includes(name)) return spec.label;
     return name;
+}
+
+
+function newOptimizerInstanceId() {
+    const used = new Set([...document.querySelectorAll(".optimizer-row")].map(row => row.dataset.instanceId));
+    while (used.has(`optimizer-${nextInstanceId}`)) nextInstanceId += 1;
+    return `optimizer-${nextInstanceId++}`;
+}
+
+function optimizerFamilyTitle(name) {
+    return name;
+}
+
+function parameterCaption(name, field) {
+    if (field === "momentum") return "beta_mom";
+    if (field === "beta1") return ["Adam", "AdamW"].includes(name) ? "beta_mom" : "beta_mix";
+    if (field === "beta2") return ["Adam", "AdamW"].includes(name) ? "beta_var" : "beta_mom";
+    if (field === "beta3" && name === "CurvatureAwareAdamW") return "beta_var";
+    if (field === "beta3" && name === "VRAdam") return "velocity penalty";
+    return ({lr: "lr", weight_decay: "wd", beta_gravity: "beta_gravity"})[field] || field;
+}
+
+// Inputs are plain settings, so title selection can be checked without a browser.
+function automaticOptimizerTitles(entries) {
+    return entries.map((entry, index) => {
+        const family = entries.filter(other => other.name === entry.name);
+        const fields = [...new Set(family.flatMap(other => Object.keys(other.settings)))];
+        const differing = fields.filter(field => {
+            const values = family.filter(other => field in other.settings).map(other => other.settings[field]);
+            return new Set(values).size > 1;
+        });
+        const details = differing.filter(field => field in entry.settings)
+            .map(field => `${parameterCaption(entry.name, field)}=${entry.settings[field]}`);
+        const title = [optimizerFamilyTitle(entry.name), ...details].join(" · ");
+        const equivalent = entries.map((other, i) => ({other, i})).filter(({other}) =>
+            other.name === entry.name && differing.every(field => other.settings[field] === entry.settings[field]));
+        return equivalent.length > 1 ? `${title} #${equivalent.findIndex(item => item.i === index) + 1}` : title;
+    });
+}
+
+function activeOptimizerSettings(row) {
+    const name = row.querySelector(".opt-name").value;
+    const settings = {};
+    for (const field of OPTIMIZER_FIELDS[name] || []) {
+        const input = row.querySelector(`.opt-${field}`);
+        if (!input || input.closest(".param-row").style.display === "none" || input.hidden) continue;
+        if (["foreach", "tie_mass"].includes(field)) continue;
+        if (field === "mass_mode" && !row.querySelector(".opt-adaptive_mass").checked) continue;
+        settings[field] = input.type === "checkbox" ? input.checked :
+            input.type === "number" ? Number(input.value) : input.value;
+    }
+    // Tied fields are hidden controls but still active parts of the recurrence.
+    if (settings.adaptive_mass === true && (OPTIMIZER_FIELDS[name] || []).includes("kappa")) {
+        settings.kappa = Number(row.querySelector(".opt-kappa").value);
+        settings.beta_gravity = Number(row.querySelector(".opt-beta_gravity").value);
+        if (row.dataset.massMode) settings.mass_mode = row.dataset.massMode;
+    }
+    return {name, settings};
+}
+
+function updateOptimizerPresentation() {
+    const rows = [...document.querySelectorAll(".optimizer-row")];
+    const titles = automaticOptimizerTitles(rows.map(activeOptimizerSettings));
+    rows.forEach((row, index) => {
+        row.querySelector(".remove-opt").disabled = rows.length === 1;
+        row.querySelector(".remove-opt").title = rows.length === 1 ? "Keep at least one optimizer" : "Remove";
+        row.dataset.displayLabel = titles[index];
+        const title = row.querySelector(".opt-label");
+        // Keep a cleared field empty while typing; restore auto text on blur.
+        if (row.dataset.customTitle !== "true" &&
+            !(document.activeElement === title && !title.value.trim())) title.value = titles[index];
+        row.querySelector(".opt-auto-title").textContent = title.value.trim() || titles[index];
+        row.style.borderLeftColor = row.querySelector(".opt-color").value;
+    });
+    const select = $("ensemble_optimizer");
+    const previous = select.value;
+    select.replaceChildren();
+    for (const row of rows) {
+        const option = document.createElement("option");
+        option.value = row.dataset.instanceId;
+        option.textContent = row.querySelector(".opt-label").value.trim() || row.dataset.displayLabel;
+        select.appendChild(option);
+    }
+    const matched = rows.find(row => row.dataset.instanceId === previous) ||
+        rows.find(row => row.querySelector(".opt-name").value === canonicalOptimizerName(previous));
+    if (matched) select.value = matched.dataset.instanceId;
+}
+
+function optimizerRowMetadata(row) {
+    return {
+        instance_id: row.dataset.instanceId,
+        label: row.dataset.customTitle === "true" ? row.querySelector(".opt-label").value.trim() : null,
+        display_label: row.dataset.displayLabel,
+        color: row.querySelector(".opt-color").value,
+    };
+}
+
+function optimizerInstanceIds(specs) {
+    if (specs.length === 0) throw new Error("A configuration must contain at least one optimizer.");
+    const used = new Set();
+    for (const spec of specs) {
+        const id = spec.instance_id;
+        if (id === undefined || id === null || id === "") continue;
+        if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$/.test(id)) {
+            throw new Error("Invalid optimizer instance_id.");
+        }
+        if (used.has(id)) throw new Error(`Duplicate optimizer instance_id: ${id}`);
+        used.add(id);
+    }
+    return specs.map((spec, index) => {
+        if (spec.instance_id) return spec.instance_id;
+        let number = index + 1;
+        while (used.has(`optimizer-${number}`)) number += 1;
+        const id = `optimizer-${number}`;
+        used.add(id);
+        return id;
+    });
+}
+
+function setOptimizerRowMetadata(row, spec, index) {
+    row.dataset.instanceId = spec.instance_id || `optimizer-${index + 1}`;
+    const legacyAlias = !spec.instance_id && ["Lion", "Signum"].includes(spec.label)
+        && spec.name !== spec.label;
+    row.querySelector(".opt-label").value = legacyAlias ? "" : (spec.label || "");
+    row.dataset.customTitle = String(Boolean(row.querySelector(".opt-label").value.trim()));
+    if (spec.color) row.querySelector(".opt-color").value = normalizedOptimizerColor(spec.color);
+}
+
+function normalizedOptimizerColor(color) {
+    if (/^#[0-9a-f]{3}$/i.test(color)) return "#" + [...color.slice(1)].map(char => char + char).join("").toLowerCase();
+    return color.toLowerCase();
+}
+
+function duplicateOptimizerRow(source) {
+    const row = addOptimizerRow(source.querySelector(".opt-name").value);
+    row.dataset.customTitle = source.dataset.customTitle || "false";
+    for (const input of source.querySelectorAll("input, select")) {
+        const className = [...input.classList].find(name => name.startsWith("opt-"));
+        const target = row.querySelector(`.${className}`);
+        target.value = input.value;
+        if (input.type === "checkbox") target.checked = input.checked;
+    }
+    const usedColors = new Set([...document.querySelectorAll(".optimizer-row")].map(item => item.querySelector(".opt-color").value));
+    const freshColor = COLOR_CHOICES.find(color => !usedColors.has(color));
+    row.querySelector(".opt-color").value = freshColor || COLOR_CHOICES[(COLOR_CHOICES.indexOf(source.querySelector(".opt-color").value) + 1) % COLOR_CHOICES.length];
+    $("optimizerRows").insertBefore(row, source.nextSibling);
+    updateOptimizerRow(row);
+    needsReset = true;
+}
+
+function importOptimizerColors(overrides, specs) {
+    const rows = [...document.querySelectorAll(".optimizer-row")];
+    rows.forEach((row, index) => {
+        if (specs[index].color) return;
+        const name = row.querySelector(".opt-name").value;
+        const color = overrides[row.dataset.instanceId] || overrides[`learner-${index}`] || overrides[`${name}-${index}`] || overrides[name];
+        if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color || "")) row.querySelector(".opt-color").value = normalizedOptimizerColor(color);
+    });
+    colorOverrides = {};
 }
 
 function addOptimizerRow(name = "Lion") {
@@ -874,6 +1056,7 @@ function addOptimizerRow(name = "Lion") {
 	const preset = optimizerDefaults(name);
 	const row = document.createElement("div");
 	row.className = "optimizer-row";
+	row.dataset.instanceId = newOptimizerInstanceId();
 	row.dataset.noiseSlot = String(nextNoiseSlot);
 	row.dataset.noiseStride = "";
 	nextNoiseSlot += 1;
@@ -881,33 +1064,38 @@ function addOptimizerRow(name = "Lion") {
 		<div class="row-head">
 			<span class="drag-handle" title="Drag to reorder" draggable="true">↕</span>
 			<select class="opt-name"></select>
+			<button class="duplicate-opt" title="Duplicate this optimizer">Copy</button>
 			<button class="remove-opt" title="Remove">x</button>
 		</div>
+        <label class="row-title">title <input class="opt-label" type="text" maxlength="200" title="Edit this title directly. Clear it and leave the field to restore automatic naming."></label>
+        <span class="opt-auto-title"></span>
+        <label class="row-style">color <input class="opt-color" type="color" aria-label="Optimizer color"></label>
 		<label class="param-row param-lr">learning rate <input class="opt-lr" type="number" step="0.005"></label>
-		<label class="param-row param-momentum">momentum <input class="opt-momentum" type="number" min="0" max="0.999" step="0.01"></label>
-		<label class="param-row param-beta1">beta1 <input class="opt-beta1" type="number" min="0" max="0.999" step="0.01"></label>
-		<label class="param-row param-beta2">beta2 <input class="opt-beta2" type="number" min="0" max="0.999" step="0.01"></label>
-		<label class="param-row param-beta3">beta3 <input class="opt-beta3" type="number" min="0" step="0.005"></label>
+		<label class="param-row param-momentum"><span class="param-caption">beta_mom</span> <input class="opt-momentum" type="number" min="0" max="0.999" step="0.01"></label>
+		<label class="param-row param-beta1"><span class="param-caption">beta_mix</span> <input class="opt-beta1" type="number" min="0" max="0.999" step="0.01"></label>
+		<label class="param-row param-beta2"><span class="param-caption">beta_mom</span> <input class="opt-beta2" type="number" min="0" max="0.999" step="0.01"></label>
+		<label class="param-row param-beta3"><span class="param-caption">beta3</span> <input class="opt-beta3" type="number" min="0" step="0.005"></label>
 		<label class="param-row param-eps">epsilon <input class="opt-eps" type="number" min="0" step="1e-8"></label>
 		<label class="param-row param-mass">mass/rho <input class="opt-mass" type="number" min="0" step="0.01"><span class="opt-mass-fixed" hidden>0</span></label>
 		<label class="param-row param-kappa">kappa <input class="opt-kappa" type="number" min="0" step="0.01"></label>
-		<label class="param-row param-beta_gravity">gravity decay <input class="opt-beta_gravity" type="number" min="0" max="0.999999999999" step="0.01"></label>
+		<label class="param-row param-beta_gravity"><span class="param-caption">beta_gravity</span> <input class="opt-beta_gravity" type="number" min="0" max="0.999999999999" step="0.01"></label>
 		<label class="param-row param-update_mode" title="Coordinate: separate masses. Vector: scalar mass and L2 speed. Vector RMS: scalar mass and RMS speed. Mass adapts from squared gradient shocks with the matching reduction.">update mode <select class="opt-update_mode"><option value="coordinate">Coordinate</option><option value="vector">Vector</option><option value="vector_rms">Vector RMS</option></select></label>
         <label class="param-row param-adaptive_mass inline"><input class="opt-adaptive_mass" type="checkbox"> adaptive mass</label>
-        <label class="param-row param-tie_mass inline" title="Paper setting: mass decay and kappa both follow beta2"><input class="opt-tie_mass" type="checkbox"> tie mass parameters to beta2</label>
+        <label class="param-row param-tie_mass inline" title="Paper setting: beta_gravity and kappa both follow beta_mom"><input class="opt-tie_mass" type="checkbox"> tie mass parameters to beta_mom</label>
         <label class="param-row param-mass_mode">mass recurrence <select class="opt-mass_mode"><option value="momentum_diff">Momentum difference (paper)</option><option value="gradient_diff">Gradient difference</option></select></label>
         <label class="param-row param-kinematics">kinematics <select class="opt-kinematics"><option value="minkowski">Minkowski</option><option value="arctan">Arctan</option><option value="tanh">Tanh</option></select></label>
         <label class="param-row param-foreach inline"><input class="opt-foreach" type="checkbox"> foreach implementation</label>
 		<label class="param-row param-weight_decay">wd <input class="opt-weight_decay" type="number" min="0" step="0.0005"></label>
 	`;
 	const select = row.querySelector(".opt-name");
-	for (const item of OPTIMIZER_NAMES) {
+	for (const item of [...OPTIMIZER_NAMES].sort((a, b) => optimizerFamilyTitle(a).localeCompare(optimizerFamilyTitle(b)))) {
 		const option = document.createElement("option");
 		option.value = item;
-		option.textContent = item;
+		option.textContent = optimizerFamilyTitle(item);
 		select.appendChild(option);
 	}
 	select.value = name;
+	row.querySelector(".opt-color").value = optimizerColor(name);
 	setOptimizerRowValues(row, preset);
 	updateOptimizerRow(row);
 	select.addEventListener("change", () => {
@@ -920,11 +1108,22 @@ function addOptimizerRow(name = "Lion") {
 		updateSharedLocks();
 		needsReset = true;
 	});
+	row.querySelector(".duplicate-opt").addEventListener("click", () => duplicateOptimizerRow(row));
 	setupOptimizerDrag(row);
-	row.addEventListener("input", () => { updateSharedLocks(); needsReset = true; });
+	row.querySelector(".opt-label").addEventListener("blur", updateOptimizerPresentation);
+	row.addEventListener("input", event => {
+        if (event.target.classList.contains("opt-label")) {
+            row.dataset.customTitle = String(Boolean(event.target.value.trim()));
+        }
+        updateSharedLocks();
+        if (["opt-label", "opt-color"].some(name => event.target.classList.contains(name))) {
+            applyColorOverrides(); updateLegend(); drawAll();
+        } else needsReset = true;
+    });
 	$("optimizerRows").appendChild(row);
 	updateSharedLocks();
 	needsReset = true;
+	return row;
 }
 
 function setupOptimizerDrag(row) {
@@ -979,7 +1178,10 @@ function setOptimizerRowValues(row, preset) {
 function updateOptimizerRow(row) {
     const name = row.querySelector(".opt-name").value;
     const fields = new Set(OPTIMIZER_FIELDS[name] || []);
-    row.style.borderLeftColor = optimizerColor(name);
+    row.style.borderLeftColor = row.querySelector(".opt-color").value;
+    for (const field of ["momentum", "beta1", "beta2", "beta3", "beta_gravity"]) {
+        row.querySelector(`.param-${field} .param-caption`).textContent = parameterCaption(name, field);
+    }
     for (const label of row.querySelectorAll(".param-row")) {
         const field = [...label.classList].find(c => c.startsWith("param-") && c !== "param-row").slice(6);
         label.style.display = fields.has(field) ? "grid" : "none";
@@ -1015,8 +1217,9 @@ function fixedMassValue(name) {
 
 function syncSharedOptimizerValues() {
 	const lockLr = $("shared_lr").checked;
-	const lockSignFamily = $("shared_beta").checked;
-	if (!lockLr && !lockSignFamily) return;
+	const lockMass = $("shared_mass").checked;
+	const lockBetas = $("shared_beta").checked;
+	if (!lockLr && !lockMass && !lockBetas) return;
 	const sharedLr = $("shared_lr_value").value;
 	const sharedMomentum = $("shared_momentum_value").value;
 	const sharedGradientInjection = $("shared_gradient_injection_value").value;
@@ -1024,8 +1227,12 @@ function syncSharedOptimizerValues() {
 	const sharedVariance = $("shared_variance_value").value;
 	for (const row of document.querySelectorAll(".optimizer-row")) {
 		if (lockLr) row.querySelector(".opt-lr").value = sharedLr;
-		if (!lockSignFamily) continue;
 		const name = row.querySelector(".opt-name").value;
+		const massField = sharedMassField(name);
+		if (lockMass && massField !== null) {
+			row.querySelector(`.opt-${massField}`).value = sharedMass;
+		}
+		if (!lockBetas) continue;
 		const momentumField = sharedMomentumField(name);
 		if (momentumField !== null) {
 			row.querySelector(`.opt-${momentumField}`).value = sharedMomentum;
@@ -1033,10 +1240,6 @@ function syncSharedOptimizerValues() {
 		const injectionField = sharedGradientInjectionField(name);
 		if (injectionField !== null) {
 			row.querySelector(`.opt-${injectionField}`).value = sharedGradientInjection;
-		}
-		const massField = sharedMassField(name);
-		if (massField !== null) {
-			row.querySelector(`.opt-${massField}`).value = sharedMass;
 		}
 		const varianceField = sharedVarianceField(name);
 		if (varianceField !== null) {
@@ -1047,30 +1250,49 @@ function syncSharedOptimizerValues() {
 
 function updateSharedLocks() {
     const shared = $("shared_beta").checked;
+    const sharedMass = $("shared_mass").checked;
+    $("shared_lr_value").disabled = !$("shared_lr").checked;
+    $("shared_mass_value").disabled = !sharedMass;
+    for (const id of ["shared_momentum_value", "shared_gradient_injection_value", "shared_variance_value"]) {
+        $(id).disabled = !shared;
+    }
+    $("shared_parameters_hint").textContent = shared
+        ? "Shared betas apply to matching fields in each optimizer."
+        : "Shared betas are off. Edit beta values in each optimizer below.";
     syncSharedOptimizerValues();
     for (const row of document.querySelectorAll(".optimizer-row")) {
         const name = row.querySelector(".opt-name").value;
         row.querySelector(".opt-lr").disabled = $("shared_lr").checked;
         for (const field of ["momentum", "beta1", "beta2", "beta3", "mass"]) {
-            row.querySelector(`.opt-${field}`).disabled = shared &&
-                [sharedMomentumField(name), sharedGradientInjectionField(name), sharedMassField(name), sharedVarianceField(name)].includes(field);
+            row.querySelector(`.opt-${field}`).disabled =
+                (sharedMass && sharedMassField(name) === field) ||
+                (shared && [sharedMomentumField(name), sharedGradientInjectionField(name), sharedVarianceField(name)].includes(field));
         }
-        const adaptive = row.querySelector(".opt-adaptive_mass").checked;
-        const tied = row.querySelector(".opt-tie_mass").checked;
-        const beta = Number(row.querySelector(".opt-beta2").value);
-        for (const field of ["kappa", "beta_gravity"]) {
-            const input = row.querySelector(`.opt-${field}`);
-            input.disabled = !adaptive || tied;
-            if (!adaptive || tied) input.value = adaptive ? beta : 0;
-        }
-        row.querySelector(".opt-tie_mass").disabled = !adaptive;
-        row.querySelector(".opt-mass_mode").disabled = !adaptive;
+        updateMassLocks(row, name);
     }
+    updateOptimizerPresentation();
+    updateControlHighlights();
+}
+
+function updateMassLocks(row, name) {
+    if (!["MassiveLion", "VectorMassiveLion"].includes(name)) return;
+    const adaptive = row.querySelector(".opt-adaptive_mass").checked;
+    const tied = row.querySelector(".opt-tie_mass").checked;
+    const beta = row.querySelector(".opt-beta2").value;
+    for (const field of ["kappa", "beta_gravity"]) {
+        const input = row.querySelector(`.opt-${field}`);
+        input.disabled = !adaptive || tied;
+        input.closest(".param-row").style.display = adaptive && !tied ? "grid" : "none";
+        if (tied) input.value = beta;
+    }
+    row.querySelector(".opt-tie_mass").disabled = !adaptive;
+    const recurrence = row.querySelector(".opt-mass_mode");
+    if (recurrence) recurrence.disabled = !adaptive;
 }
 
 function updateControlHighlights() {
 	for (const label of document.querySelectorAll(".controls label")) {
-		const input = label.querySelector("input:not([type='checkbox']), select");
+		const input = label.querySelector("input:not([type='checkbox']), input[type='checkbox']:disabled, select");
 		if (!input || label.offsetParent === null) {
 			label.classList.remove("locked", "tunable");
 			continue;
@@ -1131,10 +1353,11 @@ function setNoiseGroup(selector, hidden) {
 }
 
 function readConfig() {
+    updateSharedLocks();
     syncSharedOptimizerValues();
     const rows = [...document.querySelectorAll(".optimizer-row")];
     const optimizers = rows.map(row => {
-        if (!row.dataset.noiseStride) row.dataset.noiseStride = String(rows.length);
+        if (!row.dataset.noiseStride) row.dataset.noiseStride = String(Math.max(rows.length, Number(row.dataset.noiseSlot) + 1));
         const name = canonicalOptimizerName(row.querySelector(".opt-name").value);
         const value = key => Number(row.querySelector(`.opt-${key}`).value);
         const check = key => row.querySelector(`.opt-${key}`).checked;
@@ -1164,6 +1387,7 @@ function readConfig() {
             else if (spec.tie_mass) spec.kappa = spec.beta_gravity = spec.beta2;
         }
         validateOptimizerRow(row, name);
+        Object.assign(spec, optimizerRowMetadata(row));
         return spec;
     });
 	const x0 = numberValue("x_min");
@@ -1172,7 +1396,8 @@ function readConfig() {
 	const y1 = numberValue("y_max");
 	return {
 		mode: $("mode").value,
-		ensemble_optimizer: $("ensemble_optimizer").value,
+		ensemble_instance_id: $("ensemble_optimizer").value || null,
+        ensemble_optimizer: optimizers.find(spec => spec.instance_id === $("ensemble_optimizer").value)?.name || "Lion",
 		ensemble_count: numberValue("ensemble_count"),
 		max_steps: numberValue("max_steps"),
 		theta0: [numberValue("theta0_x"), numberValue("theta0_y")],
@@ -1224,8 +1449,8 @@ function validateOptimizerRow(row, name) {
     for (const key of ["lr", "momentum", "beta1", "beta2", "beta3", "mass", "eps", "weight_decay", "kappa", "beta_gravity"]) {
         if (!fields.has(key)) continue;
         const value = Number(row.querySelector(`.opt-${key}`).value);
-        if (!Number.isFinite(value) || value < 0) throw new Error(`${name}: ${key} must be finite and nonnegative.`);
-        if (["momentum", "beta1", "beta2", "beta_gravity"].includes(key) && value >= 1) throw new Error(`${name}: ${key} must be below 1.`);
+        if (!Number.isFinite(value) || value < 0) throw new Error(`${name}: ${parameterCaption(name, key)} must be finite and nonnegative.`);
+        if (["momentum", "beta1", "beta2", "beta_gravity"].includes(key) && value >= 1) throw new Error(`${name}: ${parameterCaption(name, key)} must be below 1.`);
         if (key === "beta3" && name === "CurvatureAwareAdamW" && value >= 1) throw new Error("Variance decay must be below 1.");
     }
 }
@@ -1241,6 +1466,7 @@ function buildExportPayload(name) {
 			delay_ms: numberValue("delay_ms"),
 			shared_lr: $("shared_lr").checked,
 			shared_lr_value: numberValue("shared_lr_value"),
+			shared_mass: $("shared_mass").checked,
 			shared_beta: $("shared_beta").checked,
 			shared_momentum_value: numberValue("shared_momentum_value"),
 			shared_gradient_injection_value: numberValue("shared_gradient_injection_value"),
@@ -1410,11 +1636,12 @@ async function applyImportedPayload(payload) {
 		requireKnownOptimizerName(canonicalOptimizerName(spec.name ?? "Lion"));
 		requireKnownOptimizerName(optimizerDisplayNameFromSpec(spec));
 	}
+	optimizerInstanceIds(optimizerSpecs);
 	const ensembleOptimizer = canonicalOptimizerName(config.ensemble_optimizer ?? "Lion");
 	requireKnownOptimizerName(ensembleOptimizer);
 	pause();
 	$("mode").value = config.mode || "parallel";
-	$("ensemble_optimizer").value = ensembleOptimizer;
+	// The instance selection is restored after optimizer rows are rebuilt.
 	setNumber("ensemble_count", config.ensemble_count);
 	setNumber("max_steps", config.max_steps);
 	if (Array.isArray(config.theta0)) {
@@ -1425,6 +1652,8 @@ async function applyImportedPayload(payload) {
 	applyNoiseConfig(config.noise || {});
 	setCheckbox("shared_lr", controls.shared_lr ?? false);
 	setNumber("shared_lr_value", controls.shared_lr_value ?? inferredSharedLearningRate(optimizerSpecs));
+	// Older saves coupled rest mass to the shared-beta toggle.
+	setCheckbox("shared_mass", controls.shared_mass ?? controls.shared_beta ?? false);
 	setCheckbox("shared_beta", controls.shared_beta ?? false);
 	setNumber(
 		"shared_momentum_value",
@@ -1440,6 +1669,10 @@ async function applyImportedPayload(payload) {
 		controls.shared_variance_value ?? inferredSharedVariance(optimizerSpecs),
 	);
 	applyOptimizerConfig(optimizerSpecs);
+    const ensembleRow = [...document.querySelectorAll(".optimizer-row")].find(row =>
+        config.ensemble_instance_id ? row.dataset.instanceId === config.ensemble_instance_id :
+        row.querySelector(".opt-name").value === ensembleOptimizer);
+    if (ensembleRow) $("ensemble_optimizer").value = ensembleRow.dataset.instanceId;
 	setNumber("delay_ms", controls.delay_ms);
 	setNumber("target_star_size", controls.target_star_size);
 	setNumber("target_dash_radius", controls.target_dash_radius);
@@ -1456,7 +1689,7 @@ async function applyImportedPayload(payload) {
 		Object.assign(landscapeView, controls.landscape_camera);
 	}
 	landscapeView.mode = $("landscape_view").value;
-	colorOverrides = controls.color_overrides || {};
+	importOptimizerColors(controls.color_overrides || {}, optimizerSpecs);
 	updateModeControls();
 	updateSharedLocks();
 	needsReset = true;
@@ -1534,6 +1767,7 @@ function legacyCurvatureRef(config) {
 }
 
 function applyOptimizerConfig(optimizers) {
+    const instanceIds = optimizerInstanceIds(optimizers);
     $("optimizerRows").innerHTML = "";
     nextNoiseSlot = 0;
     for (let index = 0; index < optimizers.length; index++) {
@@ -1546,6 +1780,8 @@ function applyOptimizerConfig(optimizers) {
             preset.update_mode = spec.rms_speed_scale === false ? "vector" : "vector_rms";
         }
         setOptimizerRowValues(row, preset);
+        setOptimizerRowMetadata(row, spec, index);
+        row.dataset.instanceId = instanceIds[index];
         row.dataset.noiseSlot = spec.noise_slot ?? index;
         row.dataset.noiseStride = Math.max(spec.noise_stride ?? optimizers.length, Number(row.dataset.noiseSlot) + 1);
         nextNoiseSlot = Math.max(nextNoiseSlot, Number(row.dataset.noiseSlot) + 1);
@@ -1778,19 +2014,30 @@ function updateLegend() {
 		item.role = "button";
 		item.tabIndex = 0;
 		item.title = `Change ${learner.name} color`;
-		let note = "";
-		if (convergence !== null && key === learner.name) {
+		const notes = [];
+		if (convergence !== null && snapshot.mode === "ensemble") {
 			const percent = Math.round(100 * convergence.fraction);
-			note = ` <span class="legend-note">converged ${convergence.converged}/${convergence.total} (${percent}%)</span>`;
+			notes.push(`converged ${convergence.converged}/${convergence.total} (${percent}%)`);
 			item.title += `; epsilon ${convergence.epsilon}, window ${convergence.window}, frac within ${convergence.frac_within}`;
 		}
 		const diverged = divergenceCount(key);
 		if (diverged > 0) {
 			const text = snapshot.mode === "ensemble" ? `diverged ${diverged}` : "diverged";
-			note += ` <span class="legend-note">${text}</span>`;
+			notes.push(text);
 			item.title += `; ${text}`;
 		}
-		item.innerHTML = `<span class="swatch" style="background:${learner.color}"></span>${learner.name}${note}`;
+		const swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.backgroundColor = learner.color;
+        const title = document.createElement("span");
+        title.textContent = learner.name;
+        item.append(swatch, title);
+        for (const text of notes) {
+            const note = document.createElement("span");
+            note.className = "legend-note";
+            note.textContent = text;
+            item.appendChild(note);
+        }
 		item.addEventListener("click", () => cycleLearnerColor(learner));
 		item.addEventListener("keydown", event => {
 			if (event.key === "Enter" || event.key === " ") {
@@ -1803,28 +2050,32 @@ function updateLegend() {
 }
 
 function applyColorOverrides() {
-	if (!snapshot) return;
-	for (const learner of snapshot.learners) {
-		const key = learnerColorKey(learner);
-		if (colorOverrides[key]) {
-			learner.color = colorOverrides[key];
-		}
-	}
+    const rows = [...document.querySelectorAll(".optimizer-row")];
+    for (const data of new Set([snapshot, fullSnapshot])) {
+        if (!data) continue;
+        for (const learner of data.learners) {
+            const row = rows.find(item => item.dataset.instanceId === learner.instance_id);
+            if (!row) continue;
+            learner.color = row.querySelector(".opt-color").value;
+            learner.name = row.querySelector(".opt-label").value.trim() || row.dataset.displayLabel;
+        }
+    }
 }
 
 function cycleLearnerColor(learner) {
-	const key = learnerColorKey(learner);
-	const current = colorOverrides[key] || learner.color;
-	const index = COLOR_CHOICES.indexOf(current);
-	colorOverrides[key] = COLOR_CHOICES[(index + 1 + COLOR_CHOICES.length) % COLOR_CHOICES.length];
-	applyColorOverrides();
-	updateLegend();
-	drawAll();
+    const row = [...document.querySelectorAll(".optimizer-row")].find(item => item.dataset.instanceId === learner.instance_id);
+    if (!row) return;
+    const input = row.querySelector(".opt-color");
+    const index = COLOR_CHOICES.indexOf(input.value);
+    input.value = COLOR_CHOICES[(index + 1 + COLOR_CHOICES.length) % COLOR_CHOICES.length];
+    updateOptimizerPresentation();
+    applyColorOverrides();
+    updateLegend();
+    drawAll();
 }
 
 function learnerColorKey(learner) {
-	if (snapshot && snapshot.mode === "ensemble") return learner.name;
-	return learner.id;
+    return learner.instance_id || learner.id;
 }
 
 function drawOrderLearners() {
@@ -2547,7 +2798,7 @@ function histogramGroups() {
 	const groups = new Map();
 	for (const learner of snapshot.learners) {
 		if (!isRelativisticKineticOptimizer(learner)) continue;
-		const key = snapshot.mode === "ensemble" ? learner.name : learner.id;
+		const key = learnerColorKey(learner);
 		if (!groups.has(key)) {
 			groups.set(key, {
 				name: learner.name,
@@ -2881,7 +3132,7 @@ for (const id of [
 	"shared_lr_value", "shared_momentum_value", "shared_gradient_injection_value",
 	"shared_mass_value", "shared_variance_value",
 ]) {
-	$(id).addEventListener("input", syncSharedOptimizerValues);
+	$(id).addEventListener("input", updateSharedLocks);
 }
 $("mode").addEventListener("change", () => {
 	updateModeControls();
@@ -2910,6 +3161,10 @@ $("shared_lr").addEventListener("change", () => {
 	needsReset = true;
 });
 $("shared_beta").addEventListener("change", () => {
+	updateSharedLocks();
+	needsReset = true;
+});
+$("shared_mass").addEventListener("change", () => {
 	updateSharedLocks();
 	needsReset = true;
 });
@@ -3003,7 +3258,7 @@ window.addEventListener("resize", drawAll);
 	updateNoiseControls();
 	updateSharedLocks();
 	await resetSimulation();
-})();
+})().catch(reportSimulationError);
 </script>
 </body>
 </html>

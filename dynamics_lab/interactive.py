@@ -3,6 +3,7 @@
 import argparse
 import json
 import threading
+import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -20,6 +21,12 @@ class Handler(BaseHTTPRequestHandler):
 		path = urlparse(self.path).path
 		if path in {"/", "/interactive.html"}:
 			self._send_bytes(HTML_PATH.read_bytes(), "text/html; charset=utf-8")
+			return
+		if path == "/favicon.svg":
+			self._send_bytes(HTML_PATH.with_name("favicon.svg").read_bytes(), "image/svg+xml")
+			return
+		if path == "/favicon.ico":
+			self._send_bytes(HTML_PATH.with_name("favicon.ico").read_bytes(), "image/x-icon")
 			return
 		if path == "/api/defaults":
 			self._send_json(defaults_payload())
@@ -79,13 +86,23 @@ def main():
 		description="Run the optimizer kinematics simulator.")
 	parser.add_argument("--host", default="127.0.0.1")
 	parser.add_argument("--port", type=int, default=8011)
+	parser.add_argument("--no-browser", action="store_true",
+						help="Serve without opening a browser tab")
 	args = parser.parse_args()
 
 	# noinspection PyTypeChecker
 	server = ThreadingHTTPServer((args.host, args.port), Handler)
-	url = f"http://{args.host}:{args.port}"
-	print(f"Serving optimizer kinematics simulator at {url}")
-	server.serve_forever()
+	host = "127.0.0.1" if args.host == "0.0.0.0" else args.host
+	url = f"http://{host}:{server.server_port}"
+	print(f"Serving Dynamics Lab at {url}", flush=True)
+	if not args.no_browser:
+		# The socket is already listening. Open off-thread so browser startup
+		# cannot prevent the server from handling its first request.
+		threading.Thread(target=webbrowser.open_new_tab, args=(url,), daemon=True).start()
+	try:
+		server.serve_forever()
+	finally:
+		server.server_close()
 
 
 if __name__ == "__main__":
