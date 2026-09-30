@@ -292,7 +292,7 @@ def test_simulation_modes_complete_reproducibly(mode):
     assert run_trace(config) == run_trace(config)
 
 
-def test_cautious_masks_match_research_conventions():
+def test_cautious_masks_match_c_optim_conventions():
     from massive_lion.baselines import CautiousLion, CautiousAdamW
     p = torch.nn.Parameter(torch.ones(2, dtype=torch.float64))
     opt = CautiousLion([p], lr=.1, betas=(.5,.9))

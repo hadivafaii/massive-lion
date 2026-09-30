@@ -213,6 +213,9 @@
     notice.textContent = message;
     notice.dataset.kind = kind;
     notice.hidden = !message;
+    if (message && kind === "pending" && host.scene && needsReset) {
+      notice.append(document.createTextNode(" "), button("Restore example", () => loadScene(host.scene.id).catch(reportSimulationError), "restore-example"));
+    }
   }
   function seek(step) {
     if (!fullSnapshot || needsReset) return;
@@ -223,7 +226,7 @@
     updateStatus(); drawAll();
   }
   function learnerKey(learner) {
-    return learner.instance_id || (host.data?.mode === "ensemble" ? learner.optimizer || learner.name : learner.id || learner.name);
+    return String(learner.instance_id ?? (host.data?.mode === "ensemble" ? learner.optimizer || learner.name : learner.id ?? learner.name));
   }
   function refreshVisible() {
     if (!host.data) return;
@@ -267,6 +270,7 @@
   function markDirty(event) {
     if (host.applying || !host.data) return;
     if (event?.target && (!customDetails.contains(event.target) || event.target.closest("#simulateBtn"))) return;
+    if (event?.type === "click" && !event.target.closest(".remove-opt,.duplicate-opt,#addOptimizerBtn")) return;
     if (needsReset) {
       if (host.loading) cancelRequest();
       pause();
@@ -317,7 +321,7 @@
     populateToggles(); refreshVisible();
     $("sceneSteps").textContent = `${data.global_step} steps`;
     const flat = config.config || config;
-    $("sceneNoise").textContent = flat.noise?.enabled ? "With gradient noise" : "No gradient noise";
+    $("sceneNoise").textContent = (data.noise?.enabled ?? flat.noise?.enabled) ? "With gradient noise" : "No gradient noise";
     const revision = provenance?.git_commit || provenance?.commit || provenance?.revision;
     $("provenance").textContent = `Computed with repository optimizers${revision ? ` · ${String(revision).slice(0, 8)}` : ""}.`;
     showNotice("");

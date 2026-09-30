@@ -38,7 +38,7 @@ not a full confirmation result. Neither example downloads training data.
 | [`heterogeneous.py`](heterogeneous.py) | 9D data construction, schedules, optimizer runs, and receipts |
 | [`summarize.py`](summarize.py) | Freeze tuning selections and summarize paired confirmation seeds |
 | [`plot.py`](plot.py) | Render the 9D numerical panels from completed runs |
-| [`configs/quadratics/`](../../configs/quadratics/) | Seed plans and historical confirmation input fixture |
+| [`configs/quadratics/`](../../configs/quadratics/) | Seed plans and fixed confirmation input fixture |
 
 Run the focused numerical tests:
 
@@ -48,6 +48,6 @@ python -m pytest -q tests/test_quadratics.py
 
 For the complete tuning → selection → confirmation workflow, follow the
 [quadratic guide](../../docs/quadratics.md). It explains the score, seed pairing,
-and why the included historical inputs matter across numerical backends.
+and why the included fixed inputs matter across numerical backends.
 See also [verification](../../docs/verification.md) and the
 [parent experiment guide](../README.md).

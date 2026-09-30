@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
 
 from dynamics_lab.engine import defaults_payload
-from dynamics_lab.web_simulation import LIMITS, simulate, validate_config
+from dynamics_lab.web_simulation import LIMITS, runtime_provenance, simulate, validate_config
 
 
 LOGGER = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ def create_app(static_dir: str | Path | None = None, *, allowed_origins: list[st
     """
     executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="dynamics")
     pending = 0
+    provenance = runtime_provenance()
 
     @asynccontextmanager
     async def lifespan(_app):
@@ -56,7 +57,7 @@ def create_app(static_dir: str | Path | None = None, *, allowed_origins: list[st
 
     @app.get("/api/health")
     async def health():
-        return {"status": "ok", "engine": "repository-python", "revision": os.environ.get("RENDER_GIT_COMMIT", "local")}
+        return {"status": "ok", "engine": "repository-python", "revision": provenance["commit"] or "local"}
 
     @app.get("/api/defaults")
     async def defaults():
@@ -97,7 +98,7 @@ def create_app(static_dir: str | Path | None = None, *, allowed_origins: list[st
         future.add_done_callback(finished)
         try:
             result = await asyncio.shield(future)
-            return JSONResponse(result)
+            return JSONResponse({"snapshot": result, "provenance": provenance})
         except (ValueError, TypeError, KeyError, OverflowError) as error:
             return JSONResponse({"error": str(error)}, status_code=400)
         except Exception:

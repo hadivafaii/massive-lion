@@ -6,10 +6,10 @@ Configurations within a seed share the objective, starting point, and batches.
 
 - `random_tune_plan.json` explores learning rates and curvature strength at momentum 0.95.
 - `beta_tune_plan.json` extends tuning to momentum 0.9 and 0.975.
-- `random_confirm_plan.json` and `beta_confirm_plan.json` preserve the historical selections for 128 fresh seeds.
+- `random_confirm_plan.json` and `beta_confirm_plan.json` specify the paper's selected configurations for 128 fresh seeds.
 - `confirmation_inputs.json` contains those seeds' matrices and initial points, with no saved scores or trajectories.
 
-The fixed inputs make historical confirmation replay independent of eigensolver
+The fixed inputs make confirmation runs independent of eigensolver
 sign conventions. The confirmation plans load them automatically.
 
 ## Check a plan

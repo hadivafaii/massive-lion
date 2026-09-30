@@ -6,6 +6,7 @@ services:
     region: oregon
     dockerfilePath: ./Dockerfile.dynamics-lab
     healthCheckPath: /api/health
+    autoDeployTrigger: off
     envVars:
       - key: ALLOWED_ORIGINS
         value: https://hadivafaii.github.io

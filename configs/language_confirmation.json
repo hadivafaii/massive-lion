@@ -1,10 +1,7 @@
 {
   "experiment": "language",
   "description": "All 16 confirmation configurations at seeds 100\u2013106: 112 runs; seed 100 exploratory, 101\u2013106 fresh.",
-  "sources": [
-    "gra/experiments/sweep/sweep_configs/2026_09_24__secret_sauce_confirmation_96.json (seeds extended to include reference seed 100)",
-    "paper/massive_lion_iclr2027/submitted.tex (Confirmation design and evaluation)"
-  ],
+  "documentation": "docs/reproduction.md#slimpajama-language-modeling",
   "fixed": {
     "steps": 6200,
     "warmup_steps": 620,

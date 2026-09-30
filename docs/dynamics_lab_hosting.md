@@ -28,6 +28,11 @@ message instead of silently replaying old results.
 
 ## Enable free custom simulations
 
+Use the preconfigured [Deploy to Render link](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Fhadivafaii%2Fmassive-lion%2Ftree%2Fcodex%2Fhosted-dynamics-lab).
+It selects the source branch and its free-service Blueprint for you. Create
+your account, review the Free service, and deploy. Send the resulting service
+URL back to Codex to connect it to the website, or follow the manual steps below.
+
 1. Visit [Render](https://dashboard.render.com/register), sign up, and connect
    the GitHub account that can access `hadivafaii/massive-lion`.
 2. Choose **New → Blueprint**, select that repository and the

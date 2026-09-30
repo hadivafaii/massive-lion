@@ -96,7 +96,8 @@ def test_serial_noise_work_includes_uncached_stride_fallbacks():
         validate_config(value)
 
 
-def test_api_returns_real_snapshot_and_json_errors(tmp_path):
+def test_api_returns_real_snapshot_with_backend_provenance_and_json_errors(tmp_path, monkeypatch):
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "a" * 40)
     (tmp_path / "index.html").write_text("<h1>Dynamics Lab preview</h1>")
     with TestClient(create_app(tmp_path, allowed_origins=["https://example.github.io"])) as client:
         assert client.get("/").status_code == 200
@@ -105,7 +106,17 @@ def test_api_returns_real_snapshot_and_json_errors(tmp_path):
         response = client.post("/api/simulate", json=config(), headers={"Origin": "https://example.github.io"})
         assert response.status_code == 200
         assert response.headers["access-control-allow-origin"] == "https://example.github.io"
-        assert response.json() == simulate(config())
+        result = response.json()
+        assert result["snapshot"] == simulate(config())
+        provenance = result["provenance"]
+        assert provenance["repository"] == "https://github.com/hadivafaii/massive-lion"
+        assert provenance["commit"] == "a" * 40
+        assert len(provenance["source_sha256"]) == 64
+        int(provenance["source_sha256"], 16)
+        assert provenance["uncommitted_changes"] in (True, False, None)
+        assert provenance["torch_version"] == torch.__version__
+        assert provenance["device"] == "cpu"
+        assert provenance["dtype"] == "float64"
         for content, status in [("{", 400), ('{"max_steps":NaN}', 400), ("[]", 400), ("x" * 65537, 413)]:
             response = client.post("/api/simulate", content=content, headers={"Content-Type": "application/json"})
             assert response.status_code == status

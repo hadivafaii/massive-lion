@@ -1,6 +1,6 @@
 # Reproduce the ICLR experiments
 
-The public recipes follow the current ICLR manuscript. They cover ResNet-18/CIFAR-10, the 160M-class SlimPajama confirmation study, response-map ablations, fixed-mass training cutoffs, and controlled quadratics. Newer 411M/1.06B exploratory runs are outside this release.
+These recipes reproduce the paper's ResNet-18/CIFAR-10 experiments, 160M-class SlimPajama confirmation study, response-map ablations, fixed-mass training cutoffs, and controlled quadratics. Dataset preparation, models, trainers, configurations, and analysis are included in this repository.
 
 The controlled quadratic recipes are documented in [quadratics.md](quadratics.md).
 
@@ -28,13 +28,13 @@ Prepare the public dataset:
 python -m experiments.prepare_cifar --root data/cifar10
 ```
 
-Preparation uses the original seed-0 permutation: `torch.randperm(50000, generator=torch.Generator().manual_seed(0))`, with its first 45,000 examples used for training and remaining 5,000 for validation. The official 10,000-example test split stays in source order. It writes normalized float32 arrays and split indices to `data/cifar10/processed`. Existing research arrays can also be used by passing their directory through `--data`.
+Preparation uses a seed-0 permutation: `torch.randperm(50000, generator=torch.Generator().manual_seed(0))`, with its first 45,000 examples used for training and remaining 5,000 for validation. The official 10,000-example test split stays in source order. It writes normalized float32 arrays and split indices to `data/cifar10/processed`. Pass a different prepared-data directory through `--data`.
 
 The normalization is mean `(0.4914, 0.4822, 0.4465)` and standard deviation `(0.2023, 0.1994, 0.2010)`. The training loader preserves raw-black four-pixel padding followed by online 32-pixel crops and horizontal flips, using a device-local generator seeded with `training_seed + epoch`. Validation and test images are never augmented. The entire dataset and padded training images reside on the selected device.
 
-The seed/split/normalization recipe was recovered from the research repository's `gra/utils/dataset.py` at commit `c5123cad0f6d01932a05fb7f0a0b056e809139a4`. The current training loader was extracted from the current research source; it is tested against raw-image augmentation independently.
+The preparation recipe is implemented in [prepare_cifar.py](../experiments/prepare_cifar.py) and [vision_data.py](../experiments/vision_data.py). The [experiment tests](../tests/test_experiments.py) check the split against the seeded permutation, normalization against torchvision, and online augmentation against raw-image padding, crops, and flips.
 
-Every full CIFAR run uses ResNet-18, batch size 256, 80,000 updates, cosine decay to `1e-5`, no warmup, no clipping, and evaluation every 5,000 updates. It retains the original ResNet construction order, sorted decay groups, and mixed-precision policy (bfloat16 where supported, otherwise float16). A learning rate is assigned before each update; the first update uses the peak learning rate.
+Every full CIFAR run uses ResNet-18, batch size 256, 80,000 updates, cosine decay to `1e-5`, no warmup, no clipping, and evaluation every 5,000 updates. Model construction and sorted decay groups are defined in [vision_model.py](../experiments/vision_model.py) and [vision_groups.py](../experiments/vision_groups.py). Training uses mixed precision (bfloat16 where supported, otherwise float16). A learning rate is assigned before each update; the first update uses the peak learning rate.
 
 | Grid | Purpose | Runs |
 |---|---|---:|
@@ -53,7 +53,7 @@ python -m experiments.sweep configs/cifar_selected.json --output runs/cifar-sele
 
 Omit `--index` to execute the entire grid sequentially. An external scheduler can assign distinct indices; the runner does not allocate machines or start hidden background jobs. Extra trainer options follow `--`, for example `-- --device cuda:1 --data /path/to/processed`. Training defaults to CUDA, with compilation enabled. Reducing the batch size or step count changes the recipe; such outputs will not pass the original grid's summary checks.
 
-The main table's ten configurations come from `tables/cifar_main.tex` and the first of each pair in the research `2026_09_23__final_seed_sweep.json`. These recipes rerun the frozen winners. They do not claim to recreate every intermediate decision in the historical tuning campaign. Each JSON records its source documents.
+The main table's ten selected configurations are fully specified in [cifar_selected.json](../configs/cifar_selected.json), including optimizer settings and seeds 0–6. Seed 0 was used for selection; seeds 1–6 are fresh initialization replicates. This grid reruns those frozen configurations. The other grids define the mass, response-map, and cutoff ablations listed above.
 
 ## SlimPajama language modeling
 
@@ -68,16 +68,16 @@ python -m experiments.prepare_language --out-path data/slimpajama \
 
 The source defaults to `gmongaras/SlimPajama-627B_Reupload` and tokenizer `EleutherAI/gpt-neox-20b`. This preprocessing is expensive. It materializes the streamed document pool, shuffles with seed 1996, tokenizes nonempty documents with one trailing end-of-text token, truncates each 1,024-document mapping batch into 2,049-token rows, then shuffles chunks with seed 96 and selects the requested rows. Keep `--num-proc 8` and the map batch size for the supplied recipe. Changing map batching/process partitioning can change the resulting token stream.
 
-Training uses the preserved plainLM transformer: 12 layers, width 768, 12 heads, GLU expansion `8/3`, rotary positions, untied embeddings, QK and embedding normalization. Each optimizer update accumulates eight microbatches of 32 sequences of length 2,048. The 6,200 updates consume 3,250,585,600 prediction tokens. All configurations use bfloat16, weight decay 0.1, zero rest mass, coordinatewise momentum-difference adaptive mass tied to momentum decay, no bias correction, and no optimizer epsilon. Gradient clipping is specified per configuration: 13 configurations use norm 1 and three use no clipping.
+Training uses the plainLM-based transformer in [language_model.py](../experiments/language_model.py): 12 layers, width 768, 12 heads, GLU expansion `8/3`, rotary positions, untied embeddings, QK and embedding normalization. Each optimizer update accumulates eight microbatches of 32 sequences of length 2,048. The 6,200 updates consume 3,250,585,600 prediction tokens. All configurations use bfloat16, weight decay 0.1, zero rest mass, coordinatewise momentum-difference adaptive mass tied to momentum decay, no bias correction, and no optimizer epsilon. Gradient clipping is specified per configuration: 13 configurations use norm 1 and three use no clipping.
 
-The data sampler traverses the prepared sequences in order. The original schedule starts with an update at learning rate zero, advances after each optimizer update, warms up for 620 steps, and then follows cosine decay to `1e-5`. The public trainer retains this order. Validation selects 48,804 rows from the 100M-token budget and drops the last incomplete microbatch, actually evaluating 48,800 sequences / 99,942,400 prediction tokens.
+The data sampler traverses the prepared sequences in order. The schedule starts with an update at learning rate zero, advances after each optimizer update, warms up for 620 steps, and then follows cosine decay to `1e-5`. Validation selects 48,804 rows from the 100M-token budget and drops the last incomplete microbatch, actually evaluating 48,800 sequences / 99,942,400 prediction tokens.
 
 ```bash
 python -m experiments.sweep configs/language_confirmation.json --output runs/language
 python -m experiments.sweep configs/language_confirmation.json --output runs/language --index 0 --execute
 ```
 
-The grid contains exactly the 16 configurations in the research `2026_09_24__secret_sauce_confirmation_96.json`, expanded to seeds **100–106** to include the exploratory references: 112 runs. In the manuscript, seed 100 selected configurations; seeds 101–106 are fresh initialization replicates. The data order is fixed across seeds. The grid includes the selected SS-AdamW baseline at momentum 0.95/LR 0.008 and matched high-momentum controls. It does not substitute the older single-seed language sweep.
+The [language_confirmation.json](../configs/language_confirmation.json) grid fully specifies 16 configurations across seeds **100–106**: 112 runs. Seed 100 was used to select configurations; seeds 101–106 are fresh initialization replicates. The data order is fixed across seeds. The grid includes the selected SS-AdamW baseline at momentum 0.95/LR 0.008 and matched high-momentum controls.
 
 Full language training needs substantial GPU memory. To use a smaller microbatch, increase `--accumulation` proportionally and retain `--target-batch-size 256`, while recording this deviation. This public trainer uses one device per run. It does not reproduce multi-device reduction ordering.
 
@@ -136,8 +136,8 @@ python -m experiments.figures language --summary outputs/language/summary.csv \
 
 These regenerate numerical panels from the local runs; they do not embed the manuscript's artwork or cached scores. The language panel uses the matched momentum-0.975, clipping-on comparisons and seven-seed Student-t intervals.
 
-## Provenance and limits
+## Implementation and limits
 
-The training/model/data implementations were cleaned directly from the research repository's vision and Secret Sauce trainers, preserving model initialization, parameter order, data order, arithmetic, decay groups and schedule placement. Research diagnostics, remote orchestration, account identifiers, and output caches are omitted. The independent public optimizer tests establish agreement with the research update; experiment tests cover data transformations, grid sizes, schedules, reduction settings, validation-only selection, and statistical units.
+The [experiment package](../experiments/README.md) contains the models, data preparation and loading, decay groups, training schedules, and result analysis used by these recipes. The [optimizer tests](../tests/test_optimizer.py) check the update equations and named reductions; the [experiment tests](../tests/test_experiments.py) cover data transformations, grid sizes, schedules, reduction settings, validation-only selection, and statistical units.
 
-The original experiments did not record immutable dataset/tokenizer revisions. The current download sources may evolve; reusing the original prepared splits is preferable for exact replay. GPU kernels, software versions, compilation, precision, and hardware can change trajectories. The release includes runnable recipes and source; it does not include checkpoints, prepared datasets, cached W&B histories, or hard-coded paper scores. CPU smoke tests establish executable paths, not full-scale replication.
+The paper's experiments did not record immutable dataset/tokenizer revisions, so newly downloaded data may differ. Preserve prepared splits when repeating a run. GPU kernels, software versions, compilation, precision, and hardware can change trajectories. The release includes runnable recipes and source; datasets must be prepared with the commands above, and checkpoints and scores are generated by training. CPU smoke tests establish executable paths, not full-scale replication.

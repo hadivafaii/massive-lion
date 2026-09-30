@@ -257,10 +257,9 @@ apply, including the moment decays of CautiousAdamW and VRAdam. A direct
 
 The lab uses the installed PyTorch optimizers. It never reimplements their
 update rules in JavaScript. Display traces and momentum histograms are computed
-by the simulation engine; the optimizer itself has no research diagnostic hooks.
+by the simulation engine.
 
-`MassiveLion` is the current implementation used by the paper (formerly called
-`gr_lion` in research runs). `Lion`, `Signum`, `MassiveSignum`, and
+`MassiveLion` implements the paper's optimizer. `Lion`, `Signum`, `MassiveSignum`, and
 `SecretSauceAdamW` are parameter presets of this one implementation.
 `VectorMassiveLion` is a convenience preset for its tensorwise vector modes.
 
@@ -294,8 +293,8 @@ requesting an incompatible reduction is rejected rather than mislabeled.
 
 The comparison menu also includes GD, PyTorch SGD/Adam/AdamW, cautious Lion and
 AdamW, curvature-aware SGD (QHM), curvature-aware AdamW/Muon, Muon, RLion, and
-VRAdam. Their row controls only show settings they use. Cautious variants retain
-the research baselines' exact scalar masking conventions; the C-Optim license
+VRAdam. Their row controls only show settings they use. Cautious variants use
+C-Optim's scalar masking conventions; the C-Optim license
 is included under `massive_lion/baselines`. Muon uses PyTorch's real matrix path
 on a 2 × 1 parameter tensor and requires a PyTorch release with `torch.optim.Muon`.
 RLion is a thin wrapper of MassiveLion with fixed coordinate arctan kinematics.

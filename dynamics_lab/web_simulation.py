@@ -7,10 +7,16 @@ uses PyTorch's process-wide RNG when generating reproducible noise.
 
 from copy import deepcopy
 from dataclasses import fields
+import hashlib
 import math
+import os
+from pathlib import Path
 import re
+import subprocess
 import threading
 from typing import Any
+
+import torch
 
 from dynamics_lab.engine import OptimizerSpec, SimulationState, canonical_optimizer_name
 from dynamics_lab.landscapes import SharpValleyConfig
@@ -42,6 +48,42 @@ _NUMERIC_FIELDS = {
     "lr", "momentum", "beta1", "beta2", "beta3", "mass", "weight_decay",
     "eps", "kappa", "beta_gravity",
 }
+
+
+def runtime_provenance() -> dict[str, Any]:
+    """Identify the numerical source installed in this backend process.
+
+    Capture this when the application starts, alongside its imported engine.
+    A source digest remains useful for packaged deployments without Git; their
+    uncommitted status is unknown rather than incorrectly reported as clean.
+    """
+    root = Path(__file__).resolve().parent.parent
+    digest = hashlib.sha256()
+    sources = sorted((root / "massive_lion").rglob("*.py")) + sorted((root / "dynamics_lab").glob("*.py"))
+    for path in sources:
+        digest.update(str(path.relative_to(root)).encode())
+        digest.update(path.read_bytes())
+
+    def git(*arguments: str) -> str | None:
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(root), *arguments], capture_output=True,
+                text=True, timeout=2, check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        return result.stdout.strip() if result.returncode == 0 else None
+
+    changes = git("status", "--porcelain", "--", "massive_lion", "dynamics_lab")
+    return {
+        "repository": "https://github.com/hadivafaii/massive-lion",
+        "commit": os.environ.get("RENDER_GIT_COMMIT") or git("rev-parse", "HEAD"),
+        "source_sha256": digest.hexdigest(),
+        "uncommitted_changes": bool(changes) if changes is not None else None,
+        "torch_version": str(torch.__version__),
+        "device": "cpu",
+        "dtype": "float64",
+    }
 
 
 def _number(value: Any, path: str, minimum: float, maximum: float) -> float:

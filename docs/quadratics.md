@@ -2,8 +2,8 @@
 
 These CPU experiments reproduce the mathematical setups in the ICLR submission.
 Install `pip install -e '.[analysis]'`. Each optimizer update uses the public
-`MassiveLion` implementation or its checked reductions. No research-repository
-imports, tracking account, or cached result files are required.
+`MassiveLion` implementation or its checked reductions. The code, seed plans,
+and fixed confirmation inputs are included in this repository.
 
 ## Stability and shrinking updates
 
@@ -11,7 +11,7 @@ imports, tracking account, or cached result files are required.
 python -m experiments.quadratics.two_dimensional --output outputs/quadratics/2d
 ```
 
-This writes two CSVs and two PDFs using the original `create_figure` theme:
+This writes two CSVs and two PDFs using the shared [plotting theme](../experiments/plotting.py):
 
 - Stability: Hessian `diag(50, 1)`, initial position `(-1, 3)`, 100 steps,
   learning rate 0.3, fixed mass 5, momentum decay 0.9, and the twelve mixing
@@ -26,16 +26,17 @@ The CSV positions and losses are measured after the corresponding update.
 
 ## Heterogeneous 9D study
 
-The code and plans are extracted from the original September 24 study.
+The [runner](../experiments/quadratics/heterogeneous.py) and
+[plans](../configs/quadratics/README.md) specify the paper's heterogeneous study.
 The Hessian has three independently rotated blocks with spectra `{1,2,3}`,
-`{99,100,101}`, and `{4998,4999,5000}`. Data columns are the original
+`{99,100,101}`, and `{4998,4999,5000}`. Data columns are the
 `3 U sqrt(Lambda)` factor, giving nine examples with zero targets. Batch size 3
 samples without replacement within each step; batch size 9 uses exact gradients.
 Gaussian initial vectors are normalized to norm 3. The optimizer uses float64,
 zero rest mass, no weight decay, momentum-difference adaptation, and tied
 `beta3 = kappa = beta2`.
 
-Each run lasts 500 steps, with the original 5% linear warmup and cosine schedule.
+Each run lasts 500 steps, with 5% linear warmup and a cosine schedule.
 Configurations within a seed share the Hessian, initialization, and batch
 sequence. Tuning uses seeds 0–31; confirmation uses seeds 1000–1127.
 
@@ -64,8 +65,8 @@ The runner accepts `--output DIRECTORY`; summary/plot commands accept
 previous plan with newly selected configurations: the summary checks receipt
 configurations against the plan.
 
-The supplied `configs/quadratics/*_confirm_plan.json` files preserve the
-historical selections and automatically load `confirmation_inputs.json`.
+The supplied `configs/quadratics/*_confirm_plan.json` files specify the paper's
+selected configurations and automatically load `confirmation_inputs.json`.
 They can be executed directly to evaluate those exact settings without retuning:
 
 ```bash
@@ -93,27 +94,25 @@ The primary score is the mean over 500 post-update steps of
 `log10(max(loss / initial_loss, 1e-12))`, averaged over tuning seeds. Learning
 rate is selected independently at each curvature strength. Endpoint-tuned
 and matched-learning-rate controls remain identified separately. Bootstrap
-intervals use paired seeds; the plotted mean-score bands use the original
+intervals use paired seeds; the plotted mean-score bands use a
 pointwise normal approximation. Trajectory bands show interquartile ranges.
 
-The released runner retains the original computations. In the original
-construction `H_block = U.T @ diag(eigenvalues) @ U`, changing eigenvector
+In the construction `H_block = U.T @ diag(eigenvalues) @ U`, changing eigenvector
 column signs changes the objective. LAPACK does not prescribe those signs.
 Thus library or operating-system changes can alter the sampled Hessian despite
 the same seed. Pinning NumPy alone does not pin the system's eigensolver.
 
-`confirmation_inputs.json` contains only the 128 historical Hessians, sample
+`confirmation_inputs.json` contains only the 128 confirmation Hessians, sample
 factors, initial points, and seeds (250 KiB). It contains no loss trajectories
-or experimental scores. Both batch sizes share these inputs, and their original
+or experimental scores. Both batch sizes share these inputs, and their
 batch sequences regenerate from the supplied seed rule. The runner records the
-fixture's SHA-256 in each receipt. This input fixture closes the historical
-confirmation replay gap; it does not replace a fresh evaluation with saved
-results. The original 32 tuning-seed matrices were not recovered, so retuning
-on another numerical backend can select different settings. Use the supplied
-historical confirmation plans to reproduce the originally selected comparison.
+fixture's SHA-256 in each receipt. The fixture makes confirmation runs use the
+same objectives and initial points across numerical backends. The 32 tuning-seed
+matrices are generated at runtime rather than supplied as fixed inputs, so
+retuning on another numerical backend can select different settings. Use the
+supplied confirmation plans to evaluate the paper's selected comparison.
 
-Historical study receipts recorded NumPy 2.4.6 and PyTorch 2.14.0. Validation
-with the fixed inputs establishes the equivalence described in
-[verification.md](verification.md). The regenerated PDFs show the numerical
+The fixed-input checks are described in [verification.md](verification.md).
+The regenerated PDFs show the numerical
 panels rather than reproducing the manuscript's composite artwork layout byte
 for byte.

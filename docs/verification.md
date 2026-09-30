@@ -5,11 +5,11 @@ Checks were run on macOS ARM64 with Python 3.12 and CPU PyTorch 2.14.1.
 package versions. The GitHub workflow also defines Linux checks on Python 3.10
 and 3.12; those hosted checks have not been run as part of this local release.
 
-## Optimizer equivalence
+## Optimizer checks
 
-An independent comparison extracted the original `GeneralRelativisticLion`
-class and its mathematical helpers from the research source, without importing
-the research package. It compared 432 cases for 20 updates each:
+The self-contained checks in [test_optimizer.py](../tests/test_optimizer.py)
+compare the optimizer with explicit update equations and compare scalar and
+foreach implementations. Coverage includes:
 
 - all coordinate, vector, and vector-RMS modes;
 - Minkowski, arctan, and tanh responses;
@@ -18,38 +18,44 @@ the research package. It compared 432 cases for 20 updates each:
 - float64, float32, float16, and bfloat16 parameters;
 - scalar and foreach implementations, multiple groups, and missing gradients.
 
-All parameter and optimizer-state values matched bitwise in this CPU check.
-The public tests separately cover mathematical limiting cases, aliases and
-their parameter-group constraints, zero directions, weight decay, checkpoint
-resume, and scalar/foreach agreement. The obsolete research `MassiveLion` and
-`MassiveSignum` implementations are not part of the release.
+The tests also cover mathematical limiting cases, aliases and their
+parameter-group constraints, zero directions, weight decay, and checkpoint
+resume. Numerical comparisons use dtype-appropriate tolerances; exact checks
+are used for state preservation and skipped updates.
+
+Run these checks from the repository root:
+
+```bash
+python -m pip install -e '.[test]'
+python -m pytest -q tests/test_optimizer.py
+```
 
 ## Experiments
 
 Both trainers completed CPU smoke runs with generated data. These execute the
 actual model and training code, with a small language-model configuration.
-Independent comparisons checked model initialization, Transformer forward
-values, CIFAR decay-group ordering, and the recovered CIFAR split preparation
-against their research counterparts. Named-reduction smoke runs also checked
-that saved configurations describe the effective optimizer settings.
+The [experiment tests](../tests/test_experiments.py) check CIFAR normalization,
+the seeded split, raw-image augmentation, language chunking, training schedules,
+grid coverage, validation-only selection, and statistical summaries.
+Named-reduction checks verify that saved configurations describe the effective
+optimizer settings. See the [experiment README](../experiments/README.md) for
+smoke commands that use generated data.
 
-The supplied 9D confirmation plans were run for all 500 steps using the fixed
-benchmark inputs. All **18,432 per-seed records** matched the archived study:
-92,160 values across mean log loss, endpoint log loss, final loss, and the two
-threshold times were exactly equal, with no failed runs. Configuration matching
-used each new run's receipt and seed array. This includes both batch sizes and
-all three momentum settings.
+The [quadratic tests](../tests/test_quadratics.py) check objective construction,
+the SS-AdamW reduction, repeatable runs with paired initial conditions, score
+definitions, and separate tuning/confirmation seeds. They also verify that the
+supplied fixed inputs preserve the Hessians, sample factors, and initial points
+when loaded by the runner.
 
 The fixed-input JSON has SHA-256
 `abc5889170ee1cf58a0aa673c3966ca22661204840710d373422c653316ae27c`.
 It contains benchmark inputs only. See [quadratics.md](quadratics.md) for why
-these matrices are needed for reproducible historical replay and the remaining
+these matrices are needed for reproducible confirmation runs and the remaining
 limitation on retuning with newly generated inputs.
 
-Both 2D quadratic studies and the 9D plot were executed and their PDFs inspected.
-The four neural-experiment PDF renderers were checked with explicitly synthetic
-summary fixtures kept outside this repository. Synthetic scores are not included
-in the release or presented as experimental results.
+The [quadratic guide](quadratics.md) and [neural reproduction guide](reproduction.md)
+provide commands to generate numerical panels from locally produced results.
+Generated-data smoke outputs are not paper results.
 
 ## Dynamics Lab
 

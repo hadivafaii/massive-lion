@@ -89,12 +89,12 @@ def hosted_html() -> str:
     source = (LAB / "interactive.html").read_text()
     # Keep the local lab's controls and plotting code as the only renderer.
     # The hosted adapter boots from saved data instead of the local step API.
-    source, count = re.subn(r"\(async function init\(\) \{.*?\}\)\(\)\.catch\(reportSimulationError\);",
+    source, count = re.subn(r"\(async function init\(\) \{.*?\}\)\(\)(?:\.catch\(reportSimulationError\))?;",
                             "/* Bootstrapped by web/site.js. */", source, count=1, flags=re.S)
     if count != 1:
         raise RuntimeError("Could not locate local lab bootstrap; update the hosted adapter.")
     source = source.replace('href="/favicon', 'href="./favicon')
-    source = source.replace("<title>Dynamics Lab</title>", "<title>Optimizer Dynamics Lab</title>")
+    source = re.sub(r"<title>.*?</title>", "<title>Optimizer Dynamics Lab</title>", source, count=1)
     source = source.replace("</head>", '<meta name="description" content="Explore optimizer trajectories on interactive loss landscapes. Powered by the actual Massive Lion PyTorch implementations.">\n<link rel="stylesheet" href="./site.css">\n</head>')
     return source.replace("</body>", '<script src="./site.js"></script>\n</body>')
 

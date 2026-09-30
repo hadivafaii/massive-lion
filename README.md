@@ -115,10 +115,10 @@ See [release verification](docs/verification.md) for numerical checks and limits
 | [dynamics_lab/](dynamics_lab/README.md) | Browser UI, simulation engine, landscapes, noise, and video export |
 | [experiments/](experiments/README.md) | Data preparation, models, trainers, selection, and plotting |
 | [configs/](configs/README.md) | Reproduction grids and seed plans |
-| [docs/](docs/README.md) | Equations, recipes, provenance, and verification limits |
+| [docs/](docs/README.md) | Equations, recipes, and verification limits |
 | [tests/](tests/README.md) | Numerical and experiment-contract checks |
 
-Generated datasets, runs, outputs, and checkpoints are ignored by Git. No
-research cache or manuscript source is required to use this repository.
+Generated datasets, runs, outputs, and checkpoints are ignored by Git. Dataset
+preparation, experiment configurations, training, and analysis are included here.
 
 MIT licensed. See [third-party notices](THIRD_PARTY_NOTICES.md) for adapted code.

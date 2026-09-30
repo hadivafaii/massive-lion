@@ -1,4 +1,4 @@
-"""Shared paper theme, extracted from the research repository's create_figure()."""
+"""Shared plotting theme for the paper's experiment panels."""
 from typing import List, Literal, Tuple
 
 import matplotlib

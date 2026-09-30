@@ -19,9 +19,8 @@ loss.backward()
 optimizer.step()
 ```
 
-`MassiveLion` is the optimizer called `gr_lion` in the research implementation.
-It contains no optimizer diagnostic collectors or logging dependencies. The
-named reductions below all use this same implementation.
+`MassiveLion` implements the paper's optimizer in [optimizer.py](../massive_lion/optimizer.py).
+The named reductions below all use this same implementation.
 
 ## Read the update
 
@@ -48,8 +47,7 @@ the paper, in gradient/direction units; it is not converted from a mechanical
 rest mass or rescaled when the learning rate changes. There is no epsilon or
 bias correction. Both the innovation and direction use the **old** momentum.
 
-For numerical agreement with the research implementation, the stored
-`metric_diag` buffer is the **total** squared mass `mass**2 + a2`, initialized
+The stored `metric_diag` buffer is the **total** squared mass `mass**2 + a2`, initialized
 at `mass**2`. Its recurrence is implemented using `lerp`; it is mathematically
 equivalent to the formula above when mass is fixed. `exp_avg` stores momentum.
 
@@ -108,12 +106,12 @@ example, `SecretSauceAdamW(..., mass=0.1)` or a Signum parameter group with
 unequal betas raises `ValueError`. Validation also covers groups added later,
 loaded checkpoints, and changed group options. Changing the class name cannot
 silently change the advertised reduction. These aliases are small subclasses
-of `MassiveLion`; there is no separate legacy M-Signum update implementation.
+of `MassiveLion` and share its update implementation.
 
 ## Optional extensions
 
-The full `MassiveLion` class retains the GR implementation's exploratory
-controls. These differ from the settings used for the paper's principal
+The full `MassiveLion` class also provides optional controls for ablations.
+These differ from the settings used for the paper's principal
 adaptive optimizer.
 
 For a reduction operator `R`, innovation `e`, coupling `kappa` and decay `b`,
@@ -178,6 +176,5 @@ can have ordinary floating-point rounding differences. `foreach` uses
 additional temporary tensor lists and may trade memory for reduced overhead;
 the non-Minkowski maps still evaluate the response per tensor.
 
-Optimizer checkpoints belong to this public implementation. Importing older
-research checkpoints with different optimizer names or schemas requires an
-explicit conversion; no silent legacy migration is performed.
+Optimizer checkpoints use this implementation's parameter names and state
+schema. Loading validates parameter-group options and preserves state precision.

@@ -1,7 +1,7 @@
 """Cautious optimizer comparison baselines.
 
 Adapted from C-Optim (MIT, Kaizhao Liang 2024); see C_OPTIM_LICENSE.
-These readable scalar paths preserve the research baseline's masking and
+These readable scalar paths use C-Optim's masking and
 normalization, including its epsilon convention for CautiousAdamW.
 """
 
