@@ -1,0 +1,51 @@
+{
+  "experiment": "cifar",
+  "description": "Sixteen full 80k-step runs; cutoffs select prefixes of the same cosine schedules.",
+  "sources": [
+    "paper/massive_lion_iclr2027/submitted.tex (Rest mass across training cutoffs)"
+  ],
+  "fixed": {
+    "steps": 80000,
+    "batch_size": 256,
+    "eval_every": 5000,
+    "log_every": 1000,
+    "min_lr": 1e-05,
+    "compile": true,
+    "amp": true,
+    "kinematics": "minkowski",
+    "optim": "m_lion",
+    "adaptive_mass": false,
+    "seed": 0,
+    "lr": 0.008,
+    "weight_decay": 0.1,
+    "beta2": 0.9
+  },
+  "stages": [
+    {
+      "grid": {
+        "mass": [
+          0,
+          1e-05,
+          0.001,
+          0.01,
+          0.1,
+          1,
+          10,
+          100
+        ]
+      },
+      "cases": [
+        {
+          "beta1": 0.8,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.9,
+          "label": "M-Signum",
+          "section": "Signum"
+        }
+      ]
+    }
+  ]
+}

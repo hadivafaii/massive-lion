@@ -1,0 +1,142 @@
+{
+  "schema_version": 2,
+  "name": "anisotropic_quadratic_ravine_2d.json",
+  "exported_at": "2026-05-05T08:08:00.000Z",
+  "app": "optimizer_kinematics_simulator",
+  "config": {
+    "mode": "parallel",
+    "ensemble_optimizer": "Lion",
+    "ensemble_count": 25,
+    "max_steps": 360,
+    "theta0": [
+      0.7,
+      1.8
+    ],
+    "landscape": {
+      "kind": "sloped_ravine",
+      "x_min": 0.2,
+      "x_max": 4.2,
+      "y_min": -2.4,
+      "y_max": 2.4,
+      "sharpness": 1,
+      "valley_amp": 0,
+      "valley_freq": 0,
+      "valley_tilt": 0,
+      "along_curvature": 25,
+      "ripple_amp": 0,
+      "ripple_freq": 1,
+      "boundary": 0
+    },
+    "noise": {
+      "mode": "additive",
+      "distribution": "gaussian",
+      "std": 0,
+      "seed": 0,
+      "xi_distribution": "student_t",
+      "sigma0": 0.03,
+      "sigma1": 0.6,
+      "tail_p": 1.5,
+      "tail_margin": 0.3,
+      "batch_size": 1
+    },
+    "optimizers": [
+      {
+        "name": "Lion",
+        "lr": 0.035,
+        "momentum": 0,
+        "beta1": 0.8,
+        "beta2": 0.99,
+        "mass": 0,
+        "adaptive_mass": false,
+        "tie_mass": true,
+        "mass_mode": "momentum_diff",
+        "kinematics": "minkowski",
+        "kappa": 0.0,
+        "beta_gravity": 0.0
+      },
+      {
+        "name": "MassiveLion",
+        "lr": 0.035,
+        "momentum": 0,
+        "beta1": 0.8,
+        "beta2": 0.99,
+        "mass": 0.2,
+        "adaptive_mass": false,
+        "tie_mass": true,
+        "mass_mode": "momentum_diff",
+        "kinematics": "minkowski",
+        "kappa": 0.0,
+        "beta_gravity": 0.0
+      },
+      {
+        "name": "Signum",
+        "lr": 0.035,
+        "momentum": 0.99,
+        "beta1": 0.9,
+        "beta2": 0.99,
+        "mass": 0,
+        "adaptive_mass": false,
+        "tie_mass": true,
+        "mass_mode": "momentum_diff",
+        "kinematics": "minkowski",
+        "kappa": 0.0,
+        "beta_gravity": 0.0
+      },
+      {
+        "name": "MassiveSignum",
+        "lr": 0.035,
+        "momentum": 0.99,
+        "beta1": 0.9,
+        "beta2": 0.99,
+        "mass": 0.2,
+        "adaptive_mass": false,
+        "tie_mass": true,
+        "mass_mode": "momentum_diff",
+        "kinematics": "minkowski",
+        "kappa": 0.0,
+        "beta_gravity": 0.0
+      },
+      {
+        "name": "AdamW",
+        "lr": 0.035,
+        "momentum": 0,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "mass": 0
+      },
+      {
+        "name": "SGD",
+        "lr": 0.035,
+        "momentum": 0.9,
+        "beta1": 0.9,
+        "beta2": 0.99,
+        "mass": 0
+      }
+    ]
+  },
+  "controls": {
+    "delay_ms": 20,
+    "shared_lr": true,
+    "shared_lr_value": 0.035,
+    "shared_beta": false,
+    "shared_beta_value": 0.99,
+    "ensemble_basin_radius": 0.35,
+    "target_star_size": 0.08,
+    "target_dash_radius": 0.25,
+    "ensemble_plateau_window": 25,
+    "ensemble_loss_tolerance": 0.001,
+    "trajectory_taper": true,
+    "trajectory_fade": true,
+    "loss_scale": "log",
+    "loss_color_scale": "log",
+    "landscape_view": "2d",
+    "landscape_camera": {
+      "zoom": 1,
+      "panX": 0,
+      "panY": 0,
+      "yaw": -0.72,
+      "pitch": 0.72
+    },
+    "color_overrides": {}
+  }
+}

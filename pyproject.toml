@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "massive-lion"
+version = "0.1.0"
+description = "Massive Lion: relativistic optimizer dynamics, interactive lab, and ICLR reproduction code"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md", "massive_lion/baselines/*LICENSE*", "experiments/*LICENSE*"]
+authors = [{name = "Hadi Vafaii"}]
+dependencies = ["torch>=2.4"]
+
+[project.optional-dependencies]
+lab = ["torch>=2.9", "numpy>=1.26", "matplotlib>=3.8", "seaborn>=0.13", "imageio-ffmpeg>=0.5"]
+vision = ["numpy>=1.26", "torchvision>=0.19", "tqdm>=4.66"]
+language = ["numpy>=1.26", "datasets>=2.20", "transformers>=4.44", "tqdm>=4.66"]
+analysis = ["numpy>=1.26", "scipy>=1.11", "pandas>=2.1", "matplotlib>=3.8", "seaborn>=0.13"]
+test = ["pytest>=8"]
+
+[project.urls]
+Repository = "https://github.com/hadivafaii/massive-lion"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["massive_lion*", "dynamics_lab*", "experiments*"]
+
+[tool.setuptools.package-data]
+dynamics_lab = ["*.html", "presets/*.json"]
+"massive_lion.baselines" = ["*LICENSE*"]
+experiments = ["*LICENSE*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,109 @@
+{
+  "schema_version": 2,
+  "name": "zeta_stability_quadratic_ravine_2d.json",
+  "exported_at": "2026-05-06T18:15:19.593Z",
+  "app": "optimizer_kinematics_simulator",
+  "config": {
+    "mode": "parallel",
+    "ensemble_optimizer": "Lion",
+    "ensemble_count": 25,
+    "max_steps": 230,
+    "theta0": [
+      -1,
+      3
+    ],
+    "convergence": {
+      "window": 25,
+      "frac_within": 0.8,
+      "epsilon": 0.220971
+    },
+    "landscape": {
+      "kind": "sloped_ravine",
+      "x_min": -1.2,
+      "x_max": 1.3,
+      "y_min": -1.5,
+      "y_max": 4,
+      "target_x": 0,
+      "target_y": 0,
+      "sharpness": 1,
+      "valley_amp": 0,
+      "valley_freq": 0,
+      "valley_tilt": 0,
+      "along_curvature": 50,
+      "ripple_amp": 0,
+      "ripple_freq": 0,
+      "boundary": 0
+    },
+    "noise": {
+      "enabled": false,
+      "mode": "additive",
+      "distribution": "gaussian",
+      "std": 0,
+      "seed": 0,
+      "xi_distribution": "student_t",
+      "sigma0": 0.03,
+      "sigma1": 0.6,
+      "tail_p": 1.5,
+      "tail_margin": 0.3,
+      "batch_size": 1
+    },
+    "optimizers": [
+      {
+        "name": "MassiveLion",
+        "lr": 0.1,
+        "momentum": 0,
+        "beta1": 0.3,
+        "beta2": 0.9,
+        "beta3": 0,
+        "mass": 5,
+        "noise_slot": 1,
+        "noise_stride": 6,
+        "adaptive_mass": false,
+        "tie_mass": true,
+        "mass_mode": "momentum_diff",
+        "kinematics": "minkowski",
+        "kappa": 0.0,
+        "beta_gravity": 0.0
+      },
+      {
+        "name": "AdamW",
+        "lr": 0.1,
+        "momentum": 0,
+        "beta1": 0.9,
+        "beta2": 0.999,
+        "beta3": 0,
+        "mass": 0,
+        "noise_slot": 4,
+        "noise_stride": 6,
+        "weight_decay": 0
+      }
+    ]
+  },
+  "controls": {
+    "delay_ms": 20,
+    "shared_lr": true,
+    "shared_lr_value": 0.1,
+    "shared_beta": false,
+    "shared_momentum_value": 0.99,
+    "shared_gradient_injection_value": 0.2,
+    "shared_mass_value": 1,
+    "convergence_window": 25,
+    "convergence_frac_within": 0.8,
+    "convergence_epsilon": 0.220971,
+    "target_star_size": 0.1,
+    "target_dash_radius": 0.25,
+    "trajectory_taper": false,
+    "trajectory_fade": false,
+    "loss_scale": "log",
+    "loss_color_scale": "log",
+    "landscape_view": "2d",
+    "landscape_camera": {
+      "zoom": 1,
+      "panX": 0,
+      "panY": 0,
+      "yaw": -0.72,
+      "pitch": 0.72
+    },
+    "color_overrides": {}
+  }
+}

@@ -1,0 +1,14 @@
+# Validated on Python 3.12, macOS ARM64, CPU.
+# Version record; choose an appropriate torch/torchvision build for CUDA.
+torch==2.14.1
+torchvision==0.29.1
+numpy==2.5.3
+scipy==1.18.1
+pandas==3.0.6
+matplotlib==3.11.2
+seaborn==0.13.2
+pytest==9.1.1
+imageio-ffmpeg==0.6.0
+datasets==5.0.1
+transformers==5.18.0
+tqdm==4.70.1

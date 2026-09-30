@@ -1,0 +1,3009 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Optimizer Kinematics Simulator</title>
+	<style>
+		:root {
+			--bg: #f7f7f4;
+			--ink: #202124;
+			--muted: #676b73;
+			--line: #d7d4cb;
+			--panel: #ffffff;
+			--accent: #0f766e;
+		}
+		html, body {
+			height: 100%;
+			overflow: hidden;
+		}
+		* { box-sizing: border-box; }
+		body {
+			margin: 0;
+			background: var(--bg);
+			color: var(--ink);
+			font: 14px/1.35 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+		}
+		main {
+			display: grid;
+			grid-template-rows: auto 1fr;
+			height: 100vh;
+			overflow: hidden;
+		}
+		header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 16px;
+			padding: 12px 16px;
+			border-bottom: 1px solid var(--line);
+			background: #fbfbf8;
+		}
+		h1 {
+			margin: 0;
+			font-size: 17px;
+			font-weight: 650;
+			letter-spacing: 0;
+		}
+		.title-tools {
+			display: inline-flex;
+			align-items: center;
+			gap: 10px;
+			white-space: nowrap;
+		}
+		.title-tools button {
+			padding: 5px 9px;
+			font-size: 12px;
+		}
+		.file-status {
+			color: var(--muted);
+			font-size: 12px;
+		}
+		body.drag-config {
+			outline: 2px dashed rgba(9, 128, 116, 0.55);
+			outline-offset: -8px;
+		}
+		button, select, input {
+			font: inherit;
+		}
+		button {
+			border: 1px solid #b9b5aa;
+			background: #ffffff;
+			color: var(--ink);
+			border-radius: 6px;
+			padding: 7px 10px;
+			cursor: pointer;
+		}
+		button.primary {
+			background: var(--accent);
+			color: white;
+			border-color: var(--accent);
+		}
+		button:disabled {
+			opacity: 0.45;
+			cursor: default;
+		}
+		.shell {
+			display: grid;
+			grid-template-columns: 320px 1fr;
+			min-height: 0;
+			overflow: hidden;
+		}
+		.controls {
+			overflow: auto;
+			padding: 14px;
+			border-right: 1px solid var(--line);
+			background: #fdfdf9;
+		}
+		.stage {
+			display: grid;
+			grid-template-columns: minmax(380px, 0.9fr) minmax(620px, 1.35fr);
+			gap: 10px;
+			padding: 10px;
+			min-width: 0;
+			min-height: 0;
+			overflow: hidden;
+		}
+		.side-stage {
+			display: grid;
+			grid-template-rows: minmax(190px, 0.82fr) minmax(210px, 1.18fr);
+			gap: 10px;
+			min-width: 0;
+			min-height: 0;
+		}
+		.top-strip {
+			display: grid;
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+			gap: 10px;
+			min-width: 0;
+			min-height: 0;
+		}
+		.panel {
+			display: grid;
+			grid-template-rows: auto 1fr;
+			min-width: 0;
+			min-height: 0;
+			background: var(--panel);
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			overflow: hidden;
+		}
+		.panel h2 {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			margin: 0;
+			padding: 7px 11px;
+			font-size: 13px;
+			font-weight: 650;
+			border-bottom: 1px solid var(--line);
+			background: #fbfbf8;
+		}
+		.panel h2 select {
+			width: auto;
+			min-width: 78px;
+			padding: 3px 5px;
+			font-size: 12px;
+			font-weight: 400;
+		}
+		.panel h2 .subtitle {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 400;
+		}
+		.panel-tools {
+			display: inline-flex;
+			align-items: center;
+			gap: 5px;
+			min-width: 0;
+		}
+		.panel-tools select {
+			min-width: 62px;
+		}
+		.panel-tools button {
+			width: 26px;
+			height: 26px;
+			padding: 0;
+			line-height: 1;
+		}
+		.bounds-control {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			min-width: 0;
+			color: var(--muted);
+			font-size: 11px;
+			font-weight: 400;
+		}
+		.bounds-control input[type="number"] {
+			width: 48px;
+			padding: 2px 4px;
+			font-size: 11px;
+		}
+		.bounds-control select {
+			min-width: 48px;
+			padding: 2px 4px;
+			font-size: 11px;
+		}
+		canvas {
+			display: block;
+			width: 100%;
+			height: 100%;
+			min-width: 0;
+			min-height: 0;
+		}
+		#landscapeCanvas {
+			cursor: grab;
+			touch-action: none;
+		}
+		#landscapeCanvas:active {
+			cursor: grabbing;
+		}
+		fieldset {
+			border: 1px solid var(--line);
+			border-radius: 8px;
+			margin: 0 0 12px;
+			padding: 10px;
+			background: white;
+		}
+		.display-row {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 8px;
+			margin-bottom: 12px;
+		}
+		.display-row fieldset {
+			margin: 0;
+		}
+		.display-row label {
+			grid-template-columns: 1fr 58px;
+		}
+		legend {
+			padding: 0 5px;
+			color: var(--muted);
+			font-size: 12px;
+			font-weight: 650;
+		}
+		label {
+			display: grid;
+			grid-template-columns: 1fr 96px;
+			align-items: center;
+			gap: 8px;
+			margin: 7px 0;
+			color: var(--muted);
+			font-size: 12px;
+		}
+		.controls [hidden] {
+			display: none !important;
+		}
+		label.inline {
+			grid-template-columns: auto 1fr;
+			justify-content: start;
+		}
+		label.inline input {
+			width: auto;
+		}
+		input, select {
+			width: 100%;
+			border: 1px solid #c8c4b8;
+			border-radius: 6px;
+			padding: 5px 6px;
+			background: #fff;
+			color: var(--ink);
+		}
+		label.tunable {
+			color: var(--ink);
+			font-weight: 650;
+		}
+		label.tunable input,
+		label.tunable select {
+			border-color: var(--accent);
+			background: #eefaf7;
+			box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.12);
+		}
+		label.locked {
+			opacity: 0.48;
+		}
+		label.fixed {
+			opacity: 1;
+		}
+		.opt-mass-fixed {
+			color: var(--ink);
+			font-weight: 650;
+		}
+		.actions {
+			display: flex;
+			gap: 8px;
+			flex-wrap: wrap;
+			margin-bottom: 12px;
+			position: sticky;
+			top: -14px;
+			z-index: 5;
+			padding: 10px 0;
+			background: #fdfdf9;
+			border-bottom: 1px solid var(--line);
+		}
+		.optimizer-row {
+			border: 1px solid #cfcabf;
+			border-left: 4px solid var(--accent);
+			border-radius: 8px;
+			padding: 9px;
+			margin: 10px 0;
+			background: #fbfbf8;
+			box-shadow: 0 1px 0 rgba(32, 33, 36, 0.04);
+		}
+		.optimizer-row:first-child {
+			margin-top: 0;
+		}
+		.optimizer-row.dragging {
+			opacity: 0.48;
+		}
+		.optimizer-row.drag-over {
+			border-color: var(--accent);
+			box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.16);
+		}
+		.row-head {
+			display: grid;
+			grid-template-columns: 28px 1fr 34px;
+			gap: 8px;
+			margin-bottom: 6px;
+		}
+		.drag-handle {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 28px;
+			height: 32px;
+			border: 1px solid #c8c4b8;
+			border-radius: 6px;
+			background: #ffffff;
+			color: var(--muted);
+			cursor: grab;
+			font-size: 15px;
+			line-height: 1;
+			user-select: none;
+		}
+		.drag-handle:active {
+			cursor: grabbing;
+		}
+		.status {
+			color: var(--muted);
+			font-size: 12px;
+			white-space: nowrap;
+		}
+		.legend-list {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 10px;
+			align-items: center;
+			color: var(--muted);
+			font-size: 12px;
+		}
+		.legend-item {
+			display: inline-flex;
+			gap: 5px;
+			align-items: center;
+			cursor: pointer;
+			user-select: none;
+		}
+		.legend-item:hover {
+			text-decoration: underline;
+		}
+		.legend-note {
+			color: var(--muted);
+			font-size: 11px;
+		}
+		.swatch {
+			width: 10px;
+			height: 10px;
+			border-radius: 50%;
+		}
+		.ensemble-only[hidden] {
+			display: none;
+		}
+		@media (max-width: 1360px) {
+			.shell {
+				grid-template-columns: 1fr;
+				grid-template-rows: minmax(150px, 32vh) minmax(0, 1fr);
+			}
+			.controls {
+				min-height: 0;
+				max-height: none;
+				border-right: 0;
+				border-bottom: 1px solid var(--line);
+			}
+			.stage {
+				grid-template-columns: 1fr;
+				grid-template-rows: minmax(380px, 55vh) minmax(560px, auto);
+				overflow: auto;
+			}
+			.stage > .panel:first-child { min-height: 380px; }
+			#landscapeCanvas { min-height: 330px; }
+			.side-stage { min-height: 560px; }
+		}
+		@media (max-width: 780px) {
+			.top-strip { grid-template-columns: 1fr; }
+			.side-stage { grid-template-rows: auto auto; }
+			.top-strip > .panel { min-height: 240px; }
+			.side-stage > .panel { min-height: 260px; }
+		}
+	</style>
+</head>
+<body>
+<main>
+	<header>
+		<div class="title-tools">
+			<h1>Optimizer Kinematics Simulator</h1>
+			<button id="exportBtn">Export</button>
+			<button id="importBtn">Import</button>
+			<span class="file-status" id="fileStatus" aria-live="polite"></span>
+		</div>
+		<div class="legend-list" id="legend"></div>
+		<div class="status" id="status">idle</div>
+	</header>
+	<div class="shell">
+		<aside class="controls">
+			<div class="actions">
+				<button class="primary" id="runBtn" title="Run">▶️</button>
+				<button id="pauseBtn" title="Pause">⏸️</button>
+				<button id="stepBackBtn" title="Step back">⏪</button>
+				<button id="stepForwardBtn" title="Step forward">⏩</button>
+				<button id="resetBtn" title="Reset">🔄</button>
+			</div>
+
+			<fieldset>
+				<legend>Run</legend>
+				<label>mode
+					<select id="mode">
+						<option value="parallel">parallel</option>
+						<option value="serial">serial</option>
+						<option value="ensemble">ensemble</option>
+					</select>
+				</label>
+				<label class="ensemble-only" hidden>ensemble optimizer
+					<select id="ensemble_optimizer">
+						<option value="GD">GD</option>
+						<option value="SGD">SGD</option>
+						<option value="CurvatureAwareSGD">CurvatureAwareSGD</option>
+						<option value="Adam">Adam</option>
+						<option value="AdamW">AdamW</option>
+						<option value="SecretSauceAdamW">SecretSauceAdamW</option>
+						<option value="CautiousAdamW">CautiousAdamW</option>
+						<option value="CurvatureAwareAdamW">CurvatureAwareAdamW</option>
+						<option value="Muon">Muon</option>
+						<option value="CurvatureAwareMuon">CurvatureAwareMuon</option>
+						<option value="VRAdam">VRAdam</option>
+						<option value="Lion" selected>Lion</option>
+						<option value="CautiousLion">CautiousLion</option>
+						<option value="RLion">RLion</option>
+						
+						<option value="Signum">Signum</option>
+						<option value="MassiveLion">MassiveLion</option>
+						<option value="VectorMassiveLion">VectorMassiveLion</option>
+						<option value="MassiveSignum">MassiveSignum</option>
+					</select>
+				</label>
+				<label class="ensemble-only" hidden>random starts <input id="ensemble_count" type="number" value="25" min="1" max="250" step="1"></label>
+				<label class="ensemble-only" hidden>window <input id="convergence_window" type="number" value="25" min="1" max="500" step="1"></label>
+				<label class="ensemble-only" hidden>frac within <input id="convergence_frac_within" type="number" value="0.8" min="0" max="1" step="0.05"></label>
+				<label class="ensemble-only" hidden>epsilon <input id="convergence_epsilon" type="number" value="0.207162" min="0" step="0.005"></label>
+				<label>steps <input id="max_steps" type="number" value="300" min="1" max="2000" step="1"></label>
+				<label>delay ms <input id="delay_ms" type="number" value="35" min="5" max="1000" step="5"></label>
+				<label>theta1 start <input id="theta0_x" type="number" value="-1.8" step="0.05"></label>
+				<label>theta2 start <input id="theta0_y" type="number" value="2.3" step="0.05"></label>
+			</fieldset>
+
+			<div class="display-row">
+				<fieldset>
+					<legend>Display</legend>
+					<label class="inline"><input id="trajectory_taper" type="checkbox" checked> taper trajectories</label>
+					<label class="inline"><input id="trajectory_fade" type="checkbox" checked> fade trajectory history</label>
+				</fieldset>
+				<fieldset>
+					<legend>Target</legend>
+					<label>star size <input id="target_star_size" type="number" value="0.08" min="0" step="0.01"></label>
+					<label>energy radius <input id="target_dash_radius" type="number" value="0.35" min="0" step="0.05"></label>
+				</fieldset>
+			</div>
+
+			<fieldset>
+				<legend>Optimizers</legend>
+				<label class="inline"><input id="shared_lr" type="checkbox" checked> shared learning rate</label>
+				<label>learning rate <input id="shared_lr_value" type="number" value="0.03" min="0" step="0.005"></label>
+				<label class="inline"><input id="shared_beta" type="checkbox" checked> share matched optimizer parameters</label>
+				<label title="Sets beta1 for Adam-family optimizers and Muon, beta2 for curvature/Lion families including SecretSauceAdamW, CautiousLion, CA-Muon, MassiveLion, and VectorMassiveLion, and momentum for SGD and Signum families">momentum / memory decay <input id="shared_momentum_value" type="number" value="0.99" min="0" max="0.999" step="0.01"></label>
+				<label title="Sets beta1 in d_t = beta1 m_(t-1) + (1-beta1) g_t">gradient injection (beta1) <input id="shared_gradient_injection_value" type="number" value="0.5" min="0" max="0.999" step="0.01"></label>
+				<label>mass/rho <input id="shared_mass_value" type="number" value="0.2" min="0" step="0.01"></label>
+				<label title="Sets beta2 for Adam-family second moments, beta3 for CurvatureAwareAdamW, MassiveLion mass parameters have their own tied or advanced controls. SecretSauceAdamW ties its mass decay to the momentum / memory beta2 instead.">variance / geometry decay <input id="shared_variance_value" type="number" value="0.999" min="0" max="0.999999999999" step="0.001"></label>
+				<div id="optimizerRows"></div>
+				<button id="addOptimizerBtn">Add optimizer</button>
+			</fieldset>
+
+			<fieldset>
+				<legend>Landscape</legend>
+				<label>type
+					<select id="landscape_kind">
+						<option value="sloped_ravine">sloped ravine</option>
+						<option value="curved_valley">curved valley</option>
+					</select>
+				</label>
+				<label>target x <input id="target_x" type="number" value="2.2" step="0.05"></label>
+				<label>target y <input id="target_y" type="number" value="0" step="0.05"></label>
+				<label>x curvature <input id="along_curvature" type="number" value="0.08" step="0.01"></label>
+				<label>wall curvature <input id="sharpness" type="number" value="10" step="1"></label>
+				<label>centerline slope <input id="valley_tilt" type="number" value="-0.55" step="0.02"></label>
+				<label>centerline offset amp <input id="valley_amp" type="number" value="0.5" step="0.05"></label>
+				<label>centerline bend <input id="valley_freq" type="number" value="0" step="0.1"></label>
+				<label>ripple amplitude <input id="ripple_amp" type="number" value="0.03" step="0.005"></label>
+				<label>ripple frequency <input id="ripple_freq" type="number" value="6" step="0.25"></label>
+				<label>outer confinement <input id="boundary" type="number" value="0.02" step="0.005"></label>
+			</fieldset>
+
+			<fieldset>
+				<legend>Gradient noise</legend>
+				<label class="inline"><input id="noise_enabled" type="checkbox"> noise on</label>
+				<label>mode
+					<select id="noise_mode">
+						<option value="additive">additive</option>
+						<option value="yu">Yu heavy-tail</option>
+						<option value="hessian">Hessian-powered Gaussian</option>
+					</select>
+				</label>
+				<label class="additive-noise">distribution
+					<select id="noise_distribution">
+						<option value="gaussian">gaussian</option>
+						<option value="laplace">laplace</option>
+						<option value="student_t5">student t, df=5</option>
+						<option value="student_t3">student t, df=3</option>
+						<option value="rademacher">rademacher</option>
+					</select>
+				</label>
+				<label class="additive-noise">std dev <input id="noise_std" type="number" value="0" min="0" step="0.01"></label>
+				<label class="yu-noise" hidden>ξ distribution
+					<select id="noise_xi_distribution">
+						<option value="student_t">student t</option>
+						<option value="symmetric_pareto" selected>symmetric Pareto-like</option>
+						<option value="gaussian">gaussian</option>
+					</select>
+				</label>
+				<label class="yu-noise" hidden>sigma0 <input id="noise_sigma0" type="number" value="0.1" min="0" step="0.005"></label>
+				<label class="yu-noise" hidden>sigma1 <input id="noise_sigma1" type="number" value="1" min="0" step="0.01"></label>
+				<label class="yu-noise" hidden>tail p <input id="noise_tail_p" type="number" value="1.01" min="1.01" max="2" step="0.05"></label>
+				<label class="yu-noise" hidden>tail margin <input id="noise_tail_margin" type="number" value="0.1" min="0.001" step="0.05"></label>
+				<label class="yu-noise" hidden>batch size <input id="noise_batch_size" type="number" value="1" min="1" max="256" step="1"></label>
+				<label class="hessian-noise" hidden title="Proportionality constant multiplying the noise covariance">covariance scale <input id="noise_hessian_scale" type="number" value="0.1" min="0" step="0.01"></label>
+				<label class="hessian-noise" hidden>Hessian power <input id="noise_hessian_power" type="number" value="1" min="0" step="0.1"></label>
+				<label>seed <input id="noise_seed" type="number" value="0" min="0" step="1"></label>
+			</fieldset>
+		</aside>
+
+		<section class="stage">
+			<div class="panel">
+				<h2>
+					<span>loss landscape</span>
+					<span class="bounds-control" title="Landscape coordinate bounds">
+						θ₁
+						<input id="x_min" type="number" value="-3.4" step="0.1">
+						<input id="x_max" type="number" value="3.4" step="0.1">
+						θ₂
+						<input id="y_min" type="number" value="-2.4" step="0.1">
+						<input id="y_max" type="number" value="2.4" step="0.1">
+						<select id="loss_color_scale" title="Color and contour spacing">
+							<option value="linear">lin</option>
+							<option value="log" selected>log</option>
+						</select>
+					</span>
+					<span class="panel-tools">
+						<select id="landscape_view" title="Landscape view">
+							<option value="2d">2D</option>
+							<option value="3d">3D</option>
+						</select>
+						<button id="landscape_zoom_out" title="Zoom out">−</button>
+						<button id="landscape_zoom_in" title="Zoom in">+</button>
+						<button id="landscape_reset_view" title="Reset view">⟲</button>
+					</span>
+				</h2>
+				<canvas id="landscapeCanvas"></canvas>
+			</div>
+			<div class="side-stage">
+				<div class="top-strip">
+					<div class="panel">
+						<h2><span>loss over time</span><select id="loss_scale"><option value="linear">linear</option><option value="log" selected>log</option></select></h2>
+						<canvas id="lossCanvas"></canvas>
+					</div>
+					<div class="panel">
+						<h2>position over time (θ₁)</h2>
+						<canvas id="thetaCanvas"></canvas>
+					</div>
+					<div class="panel">
+						<h2>velocity over time (Δθ₁ / η)</h2>
+						<canvas id="velocityCanvas"></canvas>
+					</div>
+				</div>
+				<div class="panel">
+					<h2>relativistic kinetic momentum histogram <span class="subtitle">(p₁/ρ; vector modes use norm or RMS / ρ)</span></h2>
+					<canvas id="histCanvas"></canvas>
+				</div>
+			</div>
+		</section>
+	</div>
+</main>
+
+<script>
+const OPTIMIZER_NAMES = ["GD", "SGD", "CurvatureAwareSGD", "Adam", "AdamW", "SecretSauceAdamW", "CautiousAdamW", "CurvatureAwareAdamW", "Muon", "CurvatureAwareMuon", "VRAdam", "Lion", "CautiousLion", "RLion", "Signum", "MassiveLion", "VectorMassiveLion", "MassiveSignum"];
+const OPTIMIZER_BACKENDS = {
+	Lion: "Lion",
+	Signum: "Signum",
+};
+const OPTIMIZER_ALIASES = {
+	SignSGD: "Signum",
+	sign_sgd: "Signum",
+	r_lion: "RLion",
+	"r-lion": "RLion",
+	Rlion: "RLion",
+	RefineLion: "RLion",
+	RefinedLion: "RLion",
+	ArctanLion: "RLion",
+	lion: "Lion",
+	ss_adamw: "SecretSauceAdamW",
+	"ss-adamw": "SecretSauceAdamW",
+	c_adamw: "CautiousAdamW",
+	"c-adamw": "CautiousAdamW",
+	"C-AdamW": "CautiousAdamW",
+	CAdamW: "CautiousAdamW",
+	cautious_adamw: "CautiousAdamW",
+	"cautious-adamw": "CautiousAdamW",
+	c_lion: "CautiousLion",
+	"c-lion": "CautiousLion",
+	"C-Lion": "CautiousLion",
+	CLion: "CautiousLion",
+	cautious_lion: "CautiousLion",
+	"cautious-lion": "CautiousLion",
+	m_lion: "MassiveLion",
+	vm_lion: "VectorMassiveLion",
+	"vm-lion": "VectorMassiveLion",
+	"VM-Lion": "VectorMassiveLion",
+	VMLion: "VectorMassiveLion",
+	vector_massive_lion: "VectorMassiveLion",
+	"vector-massive-lion": "VectorMassiveLion",
+	ca_sgd: "CurvatureAwareSGD",
+	ca_adamw: "CurvatureAwareAdamW",
+	muon: "Muon",
+	MuonWithAdamW: "Muon",
+	ca_muon: "CurvatureAwareMuon",
+	"ca-muon": "CurvatureAwareMuon",
+	"CA-Muon": "CurvatureAwareMuon",
+	CAMuon: "CurvatureAwareMuon",
+	gr_lion: "MassiveLion",
+	"gr-lion": "MassiveLion",
+	"GR-Lion": "MassiveLion",
+	grlion: "MassiveLion",
+	GeneralRelativisticLion: "MassiveLion",
+	GRLion: "MassiveLion",
+	m_signum: "MassiveSignum",
+};
+const MASSIVE_FIELDS = ["lr", "beta1", "beta2", "mass", "adaptive_mass", "tie_mass", "kappa", "beta_gravity", "mass_mode", "update_mode", "kinematics", "foreach", "weight_decay"];
+const OPTIMIZER_FIELDS = {
+    GD: ["lr", "weight_decay"], SGD: ["lr", "momentum", "weight_decay"],
+    CurvatureAwareSGD: ["lr", "beta1", "beta2", "weight_decay"],
+    Adam: ["lr", "beta1", "beta2", "eps", "weight_decay"],
+    AdamW: ["lr", "beta1", "beta2", "eps", "weight_decay"],
+    SecretSauceAdamW: ["lr", "beta2", "foreach", "weight_decay"],
+    CautiousAdamW: ["lr", "beta1", "beta2", "eps", "weight_decay"],
+    CurvatureAwareAdamW: ["lr", "beta1", "beta2", "beta3", "eps", "weight_decay"],
+    Muon: ["lr", "beta1", "weight_decay"],
+    CurvatureAwareMuon: ["lr", "beta1", "beta2", "weight_decay"],
+    VRAdam: ["lr", "beta1", "beta2", "beta3", "eps", "weight_decay"],
+    Lion: ["lr", "beta1", "beta2", "foreach", "weight_decay"],
+    CautiousLion: ["lr", "beta1", "beta2", "weight_decay"],
+    RLion: ["lr", "beta1", "beta2", "mass", "weight_decay"],
+    Signum: ["lr", "momentum", "foreach", "weight_decay"],
+    MassiveLion: MASSIVE_FIELDS,
+    VectorMassiveLion: MASSIVE_FIELDS,
+    MassiveSignum: ["lr", "momentum", "mass", "adaptive_mass", "foreach", "weight_decay"],
+};
+const LANDSCAPE_PRESETS = {
+	sloped_ravine: {
+		x_min: -3.4,
+		x_max: 3.4,
+		y_min: -2.4,
+		y_max: 2.4,
+		target_x: 2.2,
+		target_y: 0,
+		sharpness: 10,
+		valley_amp: 0.5,
+		valley_freq: 0,
+		valley_tilt: -0.55,
+		along_curvature: 0.08,
+		ripple_amp: 0.03,
+		ripple_freq: 6,
+		boundary: 0.02,
+	},
+	curved_valley: {
+		x_min: -3.4,
+		x_max: 3.4,
+		y_min: -2.4,
+		y_max: 2.4,
+		target_x: 2.2,
+		target_y: 0,
+		sharpness: 50,
+		valley_amp: 0.65,
+		valley_freq: 2.3,
+		valley_tilt: -0.18,
+		along_curvature: 0.09,
+		ripple_amp: 0.055,
+		ripple_freq: 7.5,
+		boundary: 0.2,
+	},
+};
+const YU_NOISE_DEFAULTS = {
+	xi_distribution: "symmetric_pareto",
+	sigma0: 0.1,
+	sigma1: 1,
+	tail_p: 1.01,
+	tail_margin: 0.1,
+	batch_size: 1,
+};
+const HESSIAN_NOISE_DEFAULTS = {
+	hessian_scale: 0.1,
+	hessian_power: 1,
+};
+const COLOR_CHOICES = [
+	"#8c564b",
+	"#111111",
+	"#9467bd",
+	"#17becf",
+	"#1f77b4",
+	"#d62728",
+	"#2ca02c",
+	"#ff7f0e",
+	"#e377c2",
+	"#bcbd22",
+];
+const MAX_ENSEMBLE_RENDER_POINTS = 140;
+const ENSEMBLE_RENDER_TAIL_POINTS = 50;
+let defaults = null;
+let snapshot = null;
+let fullSnapshot = null;
+let viewStep = 0;
+let landscape = null;
+let running = false;
+let timer = null;
+let needsReset = true;
+let stepping = false;
+let colorOverrides = {};
+let nextNoiseSlot = 0;
+let syncingConvergenceControls = false;
+const landscapeView = {
+	mode: "2d",
+	zoom: 1,
+	panX: 0,
+	panY: 0,
+	yaw: -0.72,
+	pitch: 0.72,
+	dragging: false,
+	dragMode: "pan",
+	lastX: 0,
+	lastY: 0,
+};
+
+const canvases = {
+	landscape: document.getElementById("landscapeCanvas"),
+	loss: document.getElementById("lossCanvas"),
+	theta: document.getElementById("thetaCanvas"),
+	velocity: document.getElementById("velocityCanvas"),
+	hist: document.getElementById("histCanvas"),
+};
+
+function $(id) {
+	return document.getElementById(id);
+}
+
+async function api(path, body = null) {
+	const options = body === null ? {} : {
+		method: "POST",
+		headers: {"Content-Type": "application/json"},
+		body: JSON.stringify(body),
+	};
+	const response = await fetch(path, options);
+	if (!response.ok) { const error = await response.json(); throw new Error(error.error || `${path} failed`); }
+	return await response.json();
+}
+
+function numberValue(id) {
+	return Number($(id).value);
+}
+
+function readConvergenceCriterion() {
+	return {
+		window: Math.max(1, Math.floor(numberValue("convergence_window"))),
+		frac_within: Math.min(1, Math.max(0, numberValue("convergence_frac_within"))),
+		epsilon: Math.max(0, numberValue("convergence_epsilon")),
+	};
+}
+
+function syncRadiusFromEpsilon() {
+	if (syncingConvergenceControls) return;
+	const radius = dashRadiusFromEpsilon(numberValue("convergence_epsilon"));
+	if (radius === null) return;
+	syncingConvergenceControls = true;
+	$("target_dash_radius").value = formatControlNumber(radius);
+	syncingConvergenceControls = false;
+}
+
+function syncEpsilonFromRadius() {
+	if (syncingConvergenceControls) return;
+	const epsilon = epsilonFromDashRadius(numberValue("target_dash_radius"));
+	if (epsilon === null) return;
+	syncingConvergenceControls = true;
+	$("convergence_epsilon").value = formatControlNumber(epsilon);
+	syncingConvergenceControls = false;
+}
+
+function epsilonFromDashRadius(radius) {
+	const curvature = targetDashCurvatureRef();
+	if (!Number.isFinite(radius) || radius < 0 || curvature === null) return null;
+	return 0.5 * curvature * radius * radius;
+}
+
+function dashRadiusFromEpsilon(epsilon) {
+	const curvature = targetDashCurvatureRef();
+	if (!Number.isFinite(epsilon) || epsilon < 0 || curvature === null || curvature <= 0) return null;
+	return Math.sqrt(2 * epsilon / curvature);
+}
+
+function targetDashCurvatureRef() {
+	const curvature = Number(landscape && landscape.curvature_ref);
+	if (Number.isFinite(curvature) && curvature > 0) return curvature;
+	return null;
+}
+
+function formatControlNumber(value) {
+	if (!Number.isFinite(value)) return "";
+	return Number(value.toPrecision(6)).toString();
+}
+
+function optimizerColor(name, fallback = "#111111") {
+	name = canonicalOptimizerName(name);
+	if (defaults && defaults.optimizer_colors && defaults.optimizer_colors[name]) {
+		return defaults.optimizer_colors[name];
+	}
+	return fallback;
+}
+
+function canonicalOptimizerName(name) {
+	return OPTIMIZER_ALIASES[name] || name;
+}
+
+function backendOptimizerName(name) {
+	name = canonicalOptimizerName(name);
+	return OPTIMIZER_BACKENDS[name] || name;
+}
+
+function optimizerDefaults(name) {
+	name = canonicalOptimizerName(name);
+	requireKnownOptimizerName(name);
+	const backendName = backendOptimizerName(name);
+	const backendDefaults = defaults.optimizers[backendName];
+	if (!backendDefaults) {
+		throw new Error(`Missing defaults for optimizer: ${name}`);
+	}
+	const preset = {...backendDefaults};
+	if ((OPTIMIZER_FIELDS[name] || []).includes("weight_decay")) {
+		preset.weight_decay = 0;
+	}
+	const fixedMass = fixedMassValue(name);
+	if (fixedMass !== null) preset.mass = fixedMass;
+	return preset;
+}
+
+function optimizerDisplayNameFromSpec(spec) {
+    const name = canonicalOptimizerName(spec.name ?? "Lion");
+    if (spec.label === "Lion" || spec.label === "Signum") return spec.label;
+    return name;
+}
+
+function addOptimizerRow(name = "Lion") {
+	name = canonicalOptimizerName(name);
+	requireKnownOptimizerName(name);
+	const preset = optimizerDefaults(name);
+	const row = document.createElement("div");
+	row.className = "optimizer-row";
+	row.dataset.noiseSlot = String(nextNoiseSlot);
+	row.dataset.noiseStride = "";
+	nextNoiseSlot += 1;
+	row.innerHTML = `
+		<div class="row-head">
+			<span class="drag-handle" title="Drag to reorder" draggable="true">↕</span>
+			<select class="opt-name"></select>
+			<button class="remove-opt" title="Remove">x</button>
+		</div>
+		<label class="param-row param-lr">learning rate <input class="opt-lr" type="number" step="0.005"></label>
+		<label class="param-row param-momentum">momentum <input class="opt-momentum" type="number" min="0" max="0.999" step="0.01"></label>
+		<label class="param-row param-beta1">beta1 <input class="opt-beta1" type="number" min="0" max="0.999" step="0.01"></label>
+		<label class="param-row param-beta2">beta2 <input class="opt-beta2" type="number" min="0" max="0.999" step="0.01"></label>
+		<label class="param-row param-beta3">beta3 <input class="opt-beta3" type="number" min="0" step="0.005"></label>
+		<label class="param-row param-eps">epsilon <input class="opt-eps" type="number" min="0" step="1e-8"></label>
+		<label class="param-row param-mass">mass/rho <input class="opt-mass" type="number" min="0" step="0.01"><span class="opt-mass-fixed" hidden>0</span></label>
+		<label class="param-row param-kappa">kappa <input class="opt-kappa" type="number" min="0" step="0.01"></label>
+		<label class="param-row param-beta_gravity">gravity decay <input class="opt-beta_gravity" type="number" min="0" max="0.999999999999" step="0.01"></label>
+		<label class="param-row param-update_mode" title="Coordinate: separate masses. Vector: scalar mass and L2 speed. Vector RMS: scalar mass and RMS speed. Mass adapts from squared gradient shocks with the matching reduction.">update mode <select class="opt-update_mode"><option value="coordinate">Coordinate</option><option value="vector">Vector</option><option value="vector_rms">Vector RMS</option></select></label>
+        <label class="param-row param-adaptive_mass inline"><input class="opt-adaptive_mass" type="checkbox"> adaptive mass</label>
+        <label class="param-row param-tie_mass inline" title="Paper setting: mass decay and kappa both follow beta2"><input class="opt-tie_mass" type="checkbox"> tie mass parameters to beta2</label>
+        <label class="param-row param-mass_mode">mass recurrence <select class="opt-mass_mode"><option value="momentum_diff">Momentum difference (paper)</option><option value="gradient_diff">Gradient difference</option></select></label>
+        <label class="param-row param-kinematics">kinematics <select class="opt-kinematics"><option value="minkowski">Minkowski</option><option value="arctan">Arctan</option><option value="tanh">Tanh</option></select></label>
+        <label class="param-row param-foreach inline"><input class="opt-foreach" type="checkbox"> foreach implementation</label>
+		<label class="param-row param-weight_decay">wd <input class="opt-weight_decay" type="number" min="0" step="0.0005"></label>
+	`;
+	const select = row.querySelector(".opt-name");
+	for (const item of OPTIMIZER_NAMES) {
+		const option = document.createElement("option");
+		option.value = item;
+		option.textContent = item;
+		select.appendChild(option);
+	}
+	select.value = name;
+	setOptimizerRowValues(row, preset);
+	updateOptimizerRow(row);
+	select.addEventListener("change", () => {
+		setOptimizerRowValues(row, optimizerDefaults(select.value));
+		updateOptimizerRow(row);
+		needsReset = true;
+	});
+	row.querySelector(".remove-opt").addEventListener("click", () => {
+		row.remove();
+		updateSharedLocks();
+		needsReset = true;
+	});
+	setupOptimizerDrag(row);
+	row.addEventListener("input", () => { updateSharedLocks(); needsReset = true; });
+	$("optimizerRows").appendChild(row);
+	updateSharedLocks();
+	needsReset = true;
+}
+
+function setupOptimizerDrag(row) {
+	const handle = row.querySelector(".drag-handle");
+	handle.addEventListener("dragstart", event => {
+		row.classList.add("dragging");
+		event.dataTransfer.effectAllowed = "move";
+		event.dataTransfer.setData("text/plain", "");
+	});
+	handle.addEventListener("dragend", () => {
+		row.classList.remove("dragging");
+		for (const item of document.querySelectorAll(".optimizer-row.drag-over")) {
+			item.classList.remove("drag-over");
+		}
+		needsReset = true;
+		updateSharedLocks();
+	});
+	row.addEventListener("dragover", event => {
+		event.preventDefault();
+		const dragging = document.querySelector(".optimizer-row.dragging");
+		if (!dragging || dragging === row) return;
+		row.classList.add("drag-over");
+		const rect = row.getBoundingClientRect();
+		const after = event.clientY > rect.top + rect.height / 2;
+		$("optimizerRows").insertBefore(dragging, after ? row.nextSibling : row);
+	});
+	row.addEventListener("dragleave", () => {
+		row.classList.remove("drag-over");
+	});
+	row.addEventListener("drop", event => {
+		event.preventDefault();
+		row.classList.remove("drag-over");
+		needsReset = true;
+		updateSharedLocks();
+	});
+}
+
+function setOptimizerRowValues(row, preset) {
+    for (const field of ["lr", "momentum", "beta1", "beta2", "beta3", "eps", "mass", "weight_decay"]) {
+        row.querySelector(`.opt-${field}`).value = preset[field] ?? (field === "eps" ? 1e-8 : 0);
+    }
+    row.querySelector(".opt-kappa").value = preset.kappa ?? preset.beta2;
+    row.querySelector(".opt-beta_gravity").value = preset.beta_gravity ?? preset.beta2;
+    row.querySelector(".opt-update_mode").value = preset.update_mode ?? "coordinate";
+    row.querySelector(".opt-mass_mode").value = preset.mass_mode ?? "momentum_diff";
+    row.querySelector(".opt-kinematics").value = preset.kinematics ?? "minkowski";
+    row.querySelector(".opt-adaptive_mass").checked = preset.adaptive_mass ?? false;
+    row.querySelector(".opt-tie_mass").checked = preset.tie_mass ?? true;
+    row.querySelector(".opt-foreach").checked = preset.foreach ?? true;
+}
+
+function updateOptimizerRow(row) {
+    const name = row.querySelector(".opt-name").value;
+    const fields = new Set(OPTIMIZER_FIELDS[name] || []);
+    row.style.borderLeftColor = optimizerColor(name);
+    for (const label of row.querySelectorAll(".param-row")) {
+        const field = [...label.classList].find(c => c.startsWith("param-") && c !== "param-row").slice(6);
+        label.style.display = fields.has(field) ? "grid" : "none";
+    }
+    row.querySelector(".opt-beta3").max = name === "CurvatureAwareAdamW" ? "0.999999999999" : "";
+    updateSharedLocks();
+}
+
+function sharedMomentumField(name) {
+	if (name === "CurvatureAwareSGD" || name === "CurvatureAwareAdamW" || name === "SecretSauceAdamW" || name === "CurvatureAwareMuon" || name === "Lion" || name === "CautiousLion" || name === "RLion" || name === "MassiveLion" || name === "VectorMassiveLion") return "beta2";
+	if (name === "Adam" || name === "AdamW" || name === "CautiousAdamW" || name === "Muon" || name === "VRAdam") return "beta1";
+	if (name === "SGD" || name === "Signum" || name === "MassiveSignum") return "momentum";
+	return null;
+}
+
+function sharedGradientInjectionField(name) {
+    return ["CurvatureAwareSGD", "CurvatureAwareAdamW", "CurvatureAwareMuon", "Lion", "CautiousLion", "RLion", "MassiveLion", "VectorMassiveLion"].includes(name) ? "beta1" : null;
+}
+
+function sharedMassField(name) {
+	if (name === "RLion" || name === "MassiveLion" || name === "VectorMassiveLion" || name === "MassiveSignum") return "mass";
+	return null;
+}
+
+function sharedVarianceField(name) {
+    if (["Adam", "AdamW", "CautiousAdamW", "VRAdam"].includes(name)) return "beta2";
+    return name === "CurvatureAwareAdamW" ? "beta3" : null;
+}
+
+function fixedMassValue(name) {
+    return ["Lion", "Signum", "SecretSauceAdamW"].includes(name) ? 0 : null;
+}
+
+function syncSharedOptimizerValues() {
+	const lockLr = $("shared_lr").checked;
+	const lockSignFamily = $("shared_beta").checked;
+	if (!lockLr && !lockSignFamily) return;
+	const sharedLr = $("shared_lr_value").value;
+	const sharedMomentum = $("shared_momentum_value").value;
+	const sharedGradientInjection = $("shared_gradient_injection_value").value;
+	const sharedMass = $("shared_mass_value").value;
+	const sharedVariance = $("shared_variance_value").value;
+	for (const row of document.querySelectorAll(".optimizer-row")) {
+		if (lockLr) row.querySelector(".opt-lr").value = sharedLr;
+		if (!lockSignFamily) continue;
+		const name = row.querySelector(".opt-name").value;
+		const momentumField = sharedMomentumField(name);
+		if (momentumField !== null) {
+			row.querySelector(`.opt-${momentumField}`).value = sharedMomentum;
+		}
+		const injectionField = sharedGradientInjectionField(name);
+		if (injectionField !== null) {
+			row.querySelector(`.opt-${injectionField}`).value = sharedGradientInjection;
+		}
+		const massField = sharedMassField(name);
+		if (massField !== null) {
+			row.querySelector(`.opt-${massField}`).value = sharedMass;
+		}
+		const varianceField = sharedVarianceField(name);
+		if (varianceField !== null) {
+			row.querySelector(`.opt-${varianceField}`).value = sharedVariance;
+		}
+	}
+}
+
+function updateSharedLocks() {
+    const shared = $("shared_beta").checked;
+    syncSharedOptimizerValues();
+    for (const row of document.querySelectorAll(".optimizer-row")) {
+        const name = row.querySelector(".opt-name").value;
+        row.querySelector(".opt-lr").disabled = $("shared_lr").checked;
+        for (const field of ["momentum", "beta1", "beta2", "beta3", "mass"]) {
+            row.querySelector(`.opt-${field}`).disabled = shared &&
+                [sharedMomentumField(name), sharedGradientInjectionField(name), sharedMassField(name), sharedVarianceField(name)].includes(field);
+        }
+        const adaptive = row.querySelector(".opt-adaptive_mass").checked;
+        const tied = row.querySelector(".opt-tie_mass").checked;
+        const beta = Number(row.querySelector(".opt-beta2").value);
+        for (const field of ["kappa", "beta_gravity"]) {
+            const input = row.querySelector(`.opt-${field}`);
+            input.disabled = !adaptive || tied;
+            if (!adaptive || tied) input.value = adaptive ? beta : 0;
+        }
+        row.querySelector(".opt-tie_mass").disabled = !adaptive;
+        row.querySelector(".opt-mass_mode").disabled = !adaptive;
+    }
+}
+
+function updateControlHighlights() {
+	for (const label of document.querySelectorAll(".controls label")) {
+		const input = label.querySelector("input:not([type='checkbox']), select");
+		if (!input || label.offsetParent === null) {
+			label.classList.remove("locked", "tunable");
+			continue;
+		}
+		label.classList.toggle("locked", input.disabled);
+		label.classList.toggle("tunable", !input.disabled);
+	}
+}
+
+function updateModeControls() {
+	const ensemble = $("mode").value === "ensemble";
+	for (const item of document.querySelectorAll(".ensemble-only")) {
+		item.hidden = !ensemble;
+	}
+	updateControlHighlights();
+}
+
+function applyLandscapePreset(kind) {
+	const preset = LANDSCAPE_PRESETS[kind];
+	if (!preset) return;
+	for (const [id, value] of Object.entries(preset)) {
+		$(id).value = value;
+	}
+	updateControlHighlights();
+}
+
+function applyYuNoiseDefaults() {
+	$("noise_xi_distribution").value = YU_NOISE_DEFAULTS.xi_distribution;
+	setNumber("noise_sigma0", YU_NOISE_DEFAULTS.sigma0);
+	setNumber("noise_sigma1", YU_NOISE_DEFAULTS.sigma1);
+	setNumber("noise_tail_p", YU_NOISE_DEFAULTS.tail_p);
+	setNumber("noise_tail_margin", YU_NOISE_DEFAULTS.tail_margin);
+	setNumber("noise_batch_size", YU_NOISE_DEFAULTS.batch_size);
+}
+
+function applyHessianNoiseDefaults() {
+	setNumber("noise_hessian_scale", HESSIAN_NOISE_DEFAULTS.hessian_scale);
+	setNumber("noise_hessian_power", HESSIAN_NOISE_DEFAULTS.hessian_power);
+}
+
+function updateNoiseControls() {
+	const enabled = $("noise_enabled").checked;
+	const mode = $("noise_mode").value;
+	$("noise_mode").disabled = !enabled;
+	setNoiseGroup(".additive-noise", !enabled || mode !== "additive");
+	setNoiseGroup(".yu-noise", !enabled || mode !== "yu");
+	setNoiseGroup(".hessian-noise", !enabled || mode !== "hessian");
+	updateControlHighlights();
+}
+
+function setNoiseGroup(selector, hidden) {
+	for (const item of document.querySelectorAll(selector)) {
+		item.hidden = hidden;
+		for (const control of item.querySelectorAll("input, select")) {
+			control.disabled = hidden;
+		}
+	}
+}
+
+function readConfig() {
+    syncSharedOptimizerValues();
+    const rows = [...document.querySelectorAll(".optimizer-row")];
+    const optimizers = rows.map(row => {
+        if (!row.dataset.noiseStride) row.dataset.noiseStride = String(rows.length);
+        const name = canonicalOptimizerName(row.querySelector(".opt-name").value);
+        const value = key => Number(row.querySelector(`.opt-${key}`).value);
+        const check = key => row.querySelector(`.opt-${key}`).checked;
+        const select = key => row.querySelector(`.opt-${key}`).value;
+        const spec = {name, lr: value("lr"), momentum: value("momentum"),
+            beta1: value("beta1"), beta2: value("beta2"), beta3: value("beta3"),
+            mass: fixedMassValue(name) ?? value("mass"), eps: value("eps"),
+            weight_decay: value("weight_decay"), foreach: check("foreach"),
+            noise_slot: Number(row.dataset.noiseSlot), noise_stride: Number(row.dataset.noiseStride)};
+        if (["MassiveLion", "VectorMassiveLion", "MassiveSignum"].includes(name)) {
+            Object.assign(spec, {adaptive_mass: check("adaptive_mass"), tie_mass: check("tie_mass"),
+                mass_mode: select("mass_mode"), update_mode: select("update_mode"),
+                kinematics: select("kinematics"), kappa: value("kappa"), beta_gravity: value("beta_gravity")});
+        }
+        if (["Signum", "MassiveSignum"].includes(name)) {
+            spec.beta1 = spec.beta2 = spec.momentum;
+            spec.update_mode = "coordinate"; spec.tie_mass = true;
+            spec.mass_mode = "momentum_diff"; spec.kinematics = "minkowski";
+        }
+        if (["Lion", "Signum"].includes(name)) spec.adaptive_mass = false;
+        if (name === "SecretSauceAdamW") {
+            Object.assign(spec, {beta1: spec.beta2, mass: 0, eps: 0, bias_correction: false,
+                adaptive_mass: true, tie_mass: true, mass_mode: "momentum_diff", kinematics: "minkowski", update_mode: "coordinate"});
+        }
+        if (spec.adaptive_mass !== undefined) {
+            if (!spec.adaptive_mass) spec.kappa = spec.beta_gravity = 0;
+            else if (spec.tie_mass) spec.kappa = spec.beta_gravity = spec.beta2;
+        }
+        validateOptimizerRow(row, name);
+        return spec;
+    });
+	const x0 = numberValue("x_min");
+	const x1 = numberValue("x_max");
+	const y0 = numberValue("y_min");
+	const y1 = numberValue("y_max");
+	return {
+		mode: $("mode").value,
+		ensemble_optimizer: $("ensemble_optimizer").value,
+		ensemble_count: numberValue("ensemble_count"),
+		max_steps: numberValue("max_steps"),
+		theta0: [numberValue("theta0_x"), numberValue("theta0_y")],
+		convergence: readConvergenceCriterion(),
+		landscape: {
+			kind: $("landscape_kind").value,
+			x_min: Math.min(x0, x1),
+			x_max: Math.max(x0, x1),
+			y_min: Math.min(y0, y1),
+			y_max: Math.max(y0, y1),
+			target_x: numberValue("target_x"),
+			target_y: numberValue("target_y"),
+			sharpness: numberValue("sharpness"),
+			valley_amp: numberValue("valley_amp"),
+			valley_freq: numberValue("valley_freq"),
+			valley_tilt: numberValue("valley_tilt"),
+			along_curvature: numberValue("along_curvature"),
+			ripple_amp: numberValue("ripple_amp"),
+			ripple_freq: numberValue("ripple_freq"),
+			boundary: numberValue("boundary"),
+		},
+		noise: {
+			enabled: $("noise_enabled").checked,
+			mode: $("noise_mode").value,
+			distribution: $("noise_distribution").value,
+			std: numberValue("noise_std"),
+			seed: numberValue("noise_seed"),
+			xi_distribution: $("noise_xi_distribution").value,
+			sigma0: numberValue("noise_sigma0"),
+			sigma1: numberValue("noise_sigma1"),
+			tail_p: numberValue("noise_tail_p"),
+			tail_margin: numberValue("noise_tail_margin"),
+			batch_size: numberValue("noise_batch_size"),
+			hessian_scale: numberValue("noise_hessian_scale"),
+			hessian_power: numberValue("noise_hessian_power"),
+		},
+		optimizers,
+	};
+}
+
+function requireKnownOptimizerName(name) {
+	if (!OPTIMIZER_NAMES.includes(name)) {
+		throw new Error(`Unknown optimizer: ${name}`);
+	}
+}
+
+function validateOptimizerRow(row, name) {
+    const fields = new Set(OPTIMIZER_FIELDS[name]);
+    for (const key of ["lr", "momentum", "beta1", "beta2", "beta3", "mass", "eps", "weight_decay", "kappa", "beta_gravity"]) {
+        if (!fields.has(key)) continue;
+        const value = Number(row.querySelector(`.opt-${key}`).value);
+        if (!Number.isFinite(value) || value < 0) throw new Error(`${name}: ${key} must be finite and nonnegative.`);
+        if (["momentum", "beta1", "beta2", "beta_gravity"].includes(key) && value >= 1) throw new Error(`${name}: ${key} must be below 1.`);
+        if (key === "beta3" && name === "CurvatureAwareAdamW" && value >= 1) throw new Error("Variance decay must be below 1.");
+    }
+}
+
+function buildExportPayload(name) {
+	return {
+		schema_version: 2,
+		name,
+		exported_at: new Date().toISOString(),
+		app: "optimizer_kinematics_simulator",
+		config: readConfig(),
+		controls: {
+			delay_ms: numberValue("delay_ms"),
+			shared_lr: $("shared_lr").checked,
+			shared_lr_value: numberValue("shared_lr_value"),
+			shared_beta: $("shared_beta").checked,
+			shared_momentum_value: numberValue("shared_momentum_value"),
+			shared_gradient_injection_value: numberValue("shared_gradient_injection_value"),
+			shared_mass_value: numberValue("shared_mass_value"),
+			shared_variance_value: numberValue("shared_variance_value"),
+			convergence_window: readConvergenceCriterion().window,
+			convergence_frac_within: readConvergenceCriterion().frac_within,
+			convergence_epsilon: readConvergenceCriterion().epsilon,
+			target_star_size: numberValue("target_star_size"),
+			target_dash_radius: numberValue("target_dash_radius"),
+			trajectory_taper: $("trajectory_taper").checked,
+			trajectory_fade: $("trajectory_fade").checked,
+			loss_scale: $("loss_scale").value,
+			loss_color_scale: $("loss_color_scale").value,
+			landscape_view: $("landscape_view").value,
+			landscape_camera: {
+				zoom: landscapeView.zoom,
+				panX: landscapeView.panX,
+				panY: landscapeView.panY,
+				yaw: landscapeView.yaw,
+				pitch: landscapeView.pitch,
+			},
+			color_overrides: colorOverrides,
+		},
+	};
+}
+
+async function exportConfig() {
+	const defaultName = defaultExportName();
+	if ("showSaveFilePicker" in window) {
+		const handle = await window.showSaveFilePicker({
+			suggestedName: defaultName,
+			types: [configFileType()],
+		});
+		const fileName = handle.name || defaultName;
+		const payload = buildExportPayload(fileName);
+		const writable = await handle.createWritable();
+		await writable.write(configJson(payload));
+		await writable.close();
+		setFileStatus(fileName, "exported");
+		return;
+	}
+	downloadTextFile(defaultName, configJson(buildExportPayload(defaultName)));
+	setFileStatus(defaultName, "exported");
+}
+
+async function importConfig() {
+	const file = await pickConfigFile();
+	await importConfigFile(file);
+}
+
+async function importConfigFile(file) {
+	if (!file) return;
+	if (!file.name.toLowerCase().endsWith(".json")) {
+		throw new Error("Please import a JSON config file.");
+	}
+	const payload = JSON.parse(await file.text());
+	await applyImportedPayload(payload);
+	setFileStatus(file.name, "imported");
+}
+
+function setFileStatus(name, action) {
+	$("fileStatus").textContent = `(${name} ${action})`;
+}
+
+function dragEventHasFiles(event) {
+	return Array.from(event.dataTransfer?.types || []).includes("Files");
+}
+
+function configFileType() {
+	return {
+		description: "Simulation config JSON",
+		accept: {"application/json": [".json"]},
+	};
+}
+
+function configJson(payload) {
+	return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+function downloadTextFile(name, text) {
+	const blob = new Blob([text], {type: "application/json"});
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = name;
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	URL.revokeObjectURL(url);
+}
+
+async function pickConfigFile() {
+	return new Promise(resolve => {
+		const input = document.createElement("input");
+		input.type = "file";
+		input.accept = "application/json,.json";
+		input.style.display = "none";
+		const cleanup = () => input.remove();
+		input.addEventListener("change", () => {
+			const file = input.files && input.files[0] ? input.files[0] : null;
+			cleanup();
+			resolve(file);
+		}, {once: true});
+		input.addEventListener("cancel", () => {
+			cleanup();
+			resolve(null);
+		}, {once: true});
+		document.body.appendChild(input);
+		input.click();
+	});
+}
+
+function isAbortError(error) {
+	return error && error.name === "AbortError";
+}
+
+function migrateOptimizerSpec(input, version) {
+    const spec = {...input};
+    const oldName = spec.name ?? "Lion";
+    const name = canonicalOptimizerName(oldName);
+    if (spec.adaptive_geometry) throw new Error("Legacy adaptive vector geometry is unsupported; use vector adaptive mass instead.");
+    if (version === 1) {
+        const wasGR = ["GRLion", "gr_lion", "gr-lion", "GR-Lion", "grlion", "GeneralRelativisticLion"].includes(oldName);
+        if (["MassiveLion", "MassiveSignum", "VectorMassiveLion"].includes(name)) {
+            spec.adaptive_mass = spec.adaptive_mass ?? wasGR;
+            spec.mass_mode = spec.mass_mode ?? (wasGR ? "gradient_diff" : "momentum_diff");
+            spec.tie_mass = spec.tie_mass ?? !wasGR;
+            if (wasGR) {
+                spec.kappa = spec.kappa ?? .1;
+                spec.beta_gravity = spec.beta_gravity ?? spec.beta3 ?? .99;
+            }
+        }
+    }
+    if (name === "SecretSauceAdamW" && (Number(spec.beta1 ?? spec.beta2) !== Number(spec.beta2) || Number(spec.mass ?? 0) !== 0 || Number(spec.eps ?? 0) !== 0 || spec.bias_correction)) {
+        throw new Error("SecretSauceAdamW now means the exact equal-beta, zero-mass, zero-epsilon reduction without bias correction.");
+    }
+    spec.name = name;
+    if (version === 1 && !spec.adaptive_mass && Number(spec.mass) === 0) {
+        if (name === "MassiveLion") spec.name = "Lion";
+        if (name === "MassiveSignum") spec.name = "Signum";
+    }
+    return spec;
+}
+
+async function applyImportedPayload(payload) {
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new Error("The imported config must be a JSON object.");
+	}
+	if (payload.schema_version !== undefined && ![1, 2].includes(payload.schema_version)) {
+		throw new Error(
+			`Unsupported config schema_version: ${String(payload.schema_version)}. Expected 1 or 2.`,
+		);
+	}
+	const config = payload.config || payload;
+	if (!config || typeof config !== "object" || Array.isArray(config)) {
+		throw new Error("The imported config payload is invalid.");
+	}
+	const controls = payload.controls && typeof payload.controls === "object"
+		? payload.controls
+		: {};
+	const optimizerSpecs = (Array.isArray(config.optimizers) ? config.optimizers : []).map(spec => migrateOptimizerSpec(spec, payload.schema_version ?? 1));
+	for (const spec of optimizerSpecs) {
+		if (!spec || typeof spec !== "object" || Array.isArray(spec)) {
+			throw new Error("Each imported optimizer must be a JSON object.");
+		}
+		requireKnownOptimizerName(canonicalOptimizerName(spec.name ?? "Lion"));
+		requireKnownOptimizerName(optimizerDisplayNameFromSpec(spec));
+	}
+	const ensembleOptimizer = canonicalOptimizerName(config.ensemble_optimizer ?? "Lion");
+	requireKnownOptimizerName(ensembleOptimizer);
+	pause();
+	$("mode").value = config.mode || "parallel";
+	$("ensemble_optimizer").value = ensembleOptimizer;
+	setNumber("ensemble_count", config.ensemble_count);
+	setNumber("max_steps", config.max_steps);
+	if (Array.isArray(config.theta0)) {
+		setNumber("theta0_x", config.theta0[0]);
+		setNumber("theta0_y", config.theta0[1]);
+	}
+	applyLandscapeConfig(config.landscape || {});
+	applyNoiseConfig(config.noise || {});
+	setCheckbox("shared_lr", controls.shared_lr ?? false);
+	setNumber("shared_lr_value", controls.shared_lr_value ?? inferredSharedLearningRate(optimizerSpecs));
+	setCheckbox("shared_beta", controls.shared_beta ?? false);
+	setNumber(
+		"shared_momentum_value",
+		controls.shared_momentum_value ?? controls.shared_beta_value ?? inferredSharedMomentum(optimizerSpecs),
+	);
+	setNumber(
+		"shared_gradient_injection_value",
+		controls.shared_gradient_injection_value ?? inferredSharedGradientInjection(optimizerSpecs),
+	);
+	setNumber("shared_mass_value", controls.shared_mass_value ?? inferredSharedMass(optimizerSpecs));
+	setNumber(
+		"shared_variance_value",
+		controls.shared_variance_value ?? inferredSharedVariance(optimizerSpecs),
+	);
+	applyOptimizerConfig(optimizerSpecs);
+	setNumber("delay_ms", controls.delay_ms);
+	setNumber("target_star_size", controls.target_star_size);
+	setNumber("target_dash_radius", controls.target_dash_radius);
+	const convergence = config.convergence || {};
+	setNumber("convergence_window", controls.convergence_window ?? convergence.window ?? controls.ensemble_plateau_window);
+	setNumber("convergence_frac_within", controls.convergence_frac_within ?? convergence.frac_within);
+	setNumber("convergence_epsilon", controls.convergence_epsilon ?? convergence.epsilon ?? legacyConvergenceEpsilon(controls, config));
+	setCheckbox("trajectory_taper", controls.trajectory_taper);
+	setCheckbox("trajectory_fade", controls.trajectory_fade);
+	setSelect("loss_scale", controls.loss_scale);
+	setSelect("loss_color_scale", controls.loss_color_scale);
+	setSelect("landscape_view", controls.landscape_view);
+	if (controls.landscape_camera) {
+		Object.assign(landscapeView, controls.landscape_camera);
+	}
+	landscapeView.mode = $("landscape_view").value;
+	colorOverrides = controls.color_overrides || {};
+	updateModeControls();
+	updateSharedLocks();
+	needsReset = true;
+	await resetSimulation();
+}
+
+function applyLandscapeConfig(config) {
+	setSelect("landscape_kind", config.kind);
+	for (const key of [
+		"x_min", "x_max", "y_min", "y_max",
+		"target_x", "target_y", "sharpness", "valley_amp", "valley_freq", "valley_tilt",
+		"along_curvature", "ripple_amp", "ripple_freq", "boundary",
+	]) {
+		setNumber(key, config[key]);
+	}
+}
+
+function applyNoiseConfig(config) {
+	const mode = config.mode || "additive";
+	setCheckbox("noise_enabled", config.enabled ?? noiseConfigEnabled(config));
+	setSelect("noise_mode", mode);
+	setSelect("noise_distribution", config.distribution);
+	setNumber("noise_std", config.std);
+	setSelect("noise_xi_distribution", config.xi_distribution);
+	if (![...$("noise_xi_distribution").options].some(option => option.value === $("noise_xi_distribution").value)) {
+		$("noise_xi_distribution").value = YU_NOISE_DEFAULTS.xi_distribution;
+	}
+	setNumber("noise_sigma0", config.sigma0);
+	setNumber("noise_sigma1", config.sigma1);
+	setNumber("noise_tail_p", config.tail_p);
+	setNumber("noise_tail_margin", config.tail_margin);
+	setNumber("noise_batch_size", config.batch_size);
+	setNumber(
+		"noise_hessian_scale",
+		config.hessian_scale ?? (mode === "hessian" ? HESSIAN_NOISE_DEFAULTS.hessian_scale : undefined),
+	);
+	setNumber(
+		"noise_hessian_power",
+		config.hessian_power ?? (mode === "hessian" ? HESSIAN_NOISE_DEFAULTS.hessian_power : undefined),
+	);
+	setNumber("noise_seed", config.seed);
+	updateNoiseControls();
+}
+
+function noiseConfigEnabled(config) {
+	const mode = config.mode || "additive";
+	if (mode === "yu") {
+		return Number(config.sigma0 || 0) > 0 || Number(config.sigma1 || 0) > 0;
+	}
+	if (mode === "hessian") {
+		return Number(config.hessian_scale ?? HESSIAN_NOISE_DEFAULTS.hessian_scale) > 0;
+	}
+	return Number(config.std || 0) > 0;
+}
+
+function legacyConvergenceEpsilon(controls, config) {
+	const radius = Number(controls.target_dash_radius);
+	if (!Number.isFinite(radius) || radius <= 0) return undefined;
+	const curvature = legacyCurvatureRef(config.landscape || {});
+	if (!Number.isFinite(curvature) || curvature <= 0) return undefined;
+	return 0.5 * curvature * radius * radius;
+}
+
+function legacyCurvatureRef(config) {
+	if ((config.kind || "sloped_ravine") !== "sloped_ravine") return undefined;
+	const sharpness = Number(config.sharpness ?? 10);
+	const along = Number(config.along_curvature ?? 0.08);
+	const tilt = Number(config.valley_tilt ?? -0.55);
+	const boundary = Number(config.boundary ?? 0.02);
+	const hxx = sharpness * tilt * tilt + along + 2 * boundary;
+	const hxy = -sharpness * tilt;
+	const hyy = sharpness + 2 * boundary;
+	const det = hxx * hyy - hxy * hxy;
+	return det > 0 ? Math.sqrt(det) : undefined;
+}
+
+function applyOptimizerConfig(optimizers) {
+    $("optimizerRows").innerHTML = "";
+    nextNoiseSlot = 0;
+    for (let index = 0; index < optimizers.length; index++) {
+        const spec = optimizers[index];
+        const name = optimizerDisplayNameFromSpec(spec);
+        addOptimizerRow(name);
+        const row = $("optimizerRows").lastElementChild;
+        const preset = {...optimizerDefaults(name), ...spec};
+        if (name === "VectorMassiveLion" && spec.update_mode === undefined) {
+            preset.update_mode = spec.rms_speed_scale === false ? "vector" : "vector_rms";
+        }
+        setOptimizerRowValues(row, preset);
+        row.dataset.noiseSlot = spec.noise_slot ?? index;
+        row.dataset.noiseStride = Math.max(spec.noise_stride ?? optimizers.length, Number(row.dataset.noiseSlot) + 1);
+        nextNoiseSlot = Math.max(nextNoiseSlot, Number(row.dataset.noiseSlot) + 1);
+        updateOptimizerRow(row);
+    }
+}
+
+function inferredSharedLearningRate(optimizers) {
+	for (const spec of optimizers) {
+		if (spec.lr !== undefined && spec.lr !== null) return spec.lr;
+	}
+	return undefined;
+}
+
+function inferredSharedMomentum(optimizers) {
+	for (const spec of optimizers) {
+		const name = optimizerDisplayNameFromSpec(spec);
+		const field = sharedMomentumField(name);
+		if (field !== null && spec[field] !== undefined && spec[field] !== null) {
+			return spec[field];
+		}
+	}
+	return undefined;
+}
+
+function inferredSharedGradientInjection(optimizers) {
+	for (const spec of optimizers) {
+		const name = optimizerDisplayNameFromSpec(spec);
+		if (sharedGradientInjectionField(name) !== null && spec.beta1 !== undefined && spec.beta1 !== null) {
+			return spec.beta1;
+		}
+	}
+	return undefined;
+}
+
+function inferredSharedMass(optimizers) {
+	for (const spec of optimizers) {
+		const name = optimizerDisplayNameFromSpec(spec);
+		if (sharedMassField(name) !== null && spec.mass !== undefined && spec.mass !== null) {
+			return spec.mass;
+		}
+	}
+	return undefined;
+}
+
+function inferredSharedVariance(optimizers) {
+	for (const spec of optimizers) {
+		const name = optimizerDisplayNameFromSpec(spec);
+		const field = sharedVarianceField(name);
+		if (field === null) continue;
+		const value = spec[field];
+		if (value !== undefined && value !== null) return value;
+	}
+	return undefined;
+}
+
+function setOptimizerInput(row, field, value) {
+	if (value === undefined || value === null) return;
+	const input = row.querySelector(`.opt-${field}`);
+	if (input) input.value = value;
+}
+
+function setOptimizerBooleanInput(row, field, value) {
+	if (value === undefined || value === null) return;
+	const input = row.querySelector(`.opt-${field}`);
+	if (input) input.checked = value === true || value === "true";
+}
+
+function setNumber(id, value) {
+	if (value !== undefined && value !== null) $(id).value = value;
+}
+
+function setCheckbox(id, value) {
+	if (value !== undefined && value !== null) $(id).checked = Boolean(value);
+}
+
+function setSelect(id, value) {
+	if (value !== undefined && value !== null) $(id).value = value;
+}
+
+function defaultExportName() {
+	return `${safeName($("landscape_kind").value)}_${timestampForFile()}.json`;
+}
+
+function timestampForFile() {
+	const now = new Date();
+	const pad = value => String(value).padStart(2, "0");
+	return [
+		now.getFullYear(),
+		pad(now.getMonth() + 1),
+		pad(now.getDate()),
+	].join("-") + "_" + [
+		pad(now.getHours()),
+		pad(now.getMinutes()),
+		pad(now.getSeconds()),
+	].join("-");
+}
+
+function safeName(value) {
+	return String(value).trim().replace(/[^a-zA-Z0-9_.-]+/g, "_") || "simulation_config";
+}
+
+async function resetSimulation() {
+	pause();
+	fullSnapshot = await api("/api/reset", readConfig());
+	viewStep = fullSnapshot.global_step;
+	snapshot = fullSnapshot;
+	landscape = snapshot.landscape;
+	syncRadiusFromEpsilon();
+	applyColorOverrides();
+	needsReset = false;
+	updateStatus();
+	drawAll();
+}
+
+async function stepForward() {
+	if (stepping) return;
+	stepping = true;
+	try {
+		if (needsReset || snapshot === null) await resetSimulation();
+		if (fullSnapshot !== null && viewStep < fullSnapshot.global_step) {
+			viewStep += 1;
+			snapshot = snapshotAtStep(fullSnapshot, viewStep);
+		} else {
+			fullSnapshot = await api("/api/step", {});
+			viewStep = fullSnapshot.global_step;
+			snapshot = fullSnapshot;
+		}
+		applyColorOverrides();
+		updateStatus();
+		drawAll();
+		if (snapshot.done) pause();
+	} finally {
+		stepping = false;
+	}
+}
+
+async function manualStepForward() {
+	pause();
+	await stepForward();
+}
+
+async function stepBackward() {
+	if (stepping) return;
+	pause();
+	if (needsReset || snapshot === null) await resetSimulation();
+	if (viewStep <= 0 || fullSnapshot === null) return;
+	viewStep -= 1;
+	snapshot = snapshotAtStep(fullSnapshot, viewStep);
+	applyColorOverrides();
+	updateStatus();
+	drawAll();
+}
+
+function snapshotAtStep(source, step) {
+	return {
+		...source,
+		global_step: step,
+		done: source.done && step >= source.global_step,
+		learners: source.learners.map(learner => {
+			const trace = (learner.trace || []).filter(sample => sample.step <= step);
+			const visibleSteps = Math.max(0, trace.length - 1);
+			return {
+				...learner,
+				trace,
+				local_step: visibleSteps,
+				speed_samples: (learner.speed_samples || []).slice(0, visibleSteps * 2),
+				kinetic_samples: (learner.kinetic_samples || []).slice(0, visibleSteps),
+				diverged: learner.diverged && (
+					learner.divergence_step == null
+						? trace.length === (learner.trace || []).length
+						: step >= learner.divergence_step
+				),
+			};
+		}),
+	};
+}
+
+function run() {
+	if (running) return;
+	running = true;
+	$("runBtn").disabled = true;
+	const tick = async () => {
+		try {
+			await stepForward();
+		} catch (error) {
+			reportSimulationError(error);
+		}
+	};
+	timer = setInterval(tick, numberValue("delay_ms"));
+	tick();
+}
+
+function pause() {
+	running = false;
+	$("runBtn").disabled = false;
+	if (timer !== null) clearInterval(timer);
+	timer = null;
+}
+
+function reportSimulationError(error) {
+	pause();
+	$("status").textContent = error && error.message ? error.message : String(error);
+}
+
+function updateStatus() {
+	if (!snapshot) {
+		$("status").textContent = "idle";
+		return;
+	}
+	const suffix = snapshot.done ? "done" : (running ? "running" : "paused");
+	const diverged = snapshot.learners.filter(learner => learner.diverged).length;
+	const divergedText = diverged > 0 ? ` · diverged ${diverged}` : "";
+	$("status").textContent = `step ${snapshot.global_step} / ${snapshot.total_steps} · ${suffix}${divergedText}`;
+	updateLegend();
+}
+
+function updateLegend() {
+	const legend = $("legend");
+	legend.innerHTML = "";
+	if (!snapshot) return;
+	const seen = new Set();
+	const convergence = ensembleConvergence();
+	for (const learner of snapshot.learners) {
+		const key = learnerColorKey(learner);
+		if (seen.has(key)) continue;
+		seen.add(key);
+		const item = document.createElement("span");
+		item.className = "legend-item";
+		item.role = "button";
+		item.tabIndex = 0;
+		item.title = `Change ${learner.name} color`;
+		let note = "";
+		if (convergence !== null && key === learner.name) {
+			const percent = Math.round(100 * convergence.fraction);
+			note = ` <span class="legend-note">converged ${convergence.converged}/${convergence.total} (${percent}%)</span>`;
+			item.title += `; epsilon ${convergence.epsilon}, window ${convergence.window}, frac within ${convergence.frac_within}`;
+		}
+		const diverged = divergenceCount(key);
+		if (diverged > 0) {
+			const text = snapshot.mode === "ensemble" ? `diverged ${diverged}` : "diverged";
+			note += ` <span class="legend-note">${text}</span>`;
+			item.title += `; ${text}`;
+		}
+		item.innerHTML = `<span class="swatch" style="background:${learner.color}"></span>${learner.name}${note}`;
+		item.addEventListener("click", () => cycleLearnerColor(learner));
+		item.addEventListener("keydown", event => {
+			if (event.key === "Enter" || event.key === " ") {
+				event.preventDefault();
+				cycleLearnerColor(learner);
+			}
+		});
+		legend.appendChild(item);
+	}
+}
+
+function applyColorOverrides() {
+	if (!snapshot) return;
+	for (const learner of snapshot.learners) {
+		const key = learnerColorKey(learner);
+		if (colorOverrides[key]) {
+			learner.color = colorOverrides[key];
+		}
+	}
+}
+
+function cycleLearnerColor(learner) {
+	const key = learnerColorKey(learner);
+	const current = colorOverrides[key] || learner.color;
+	const index = COLOR_CHOICES.indexOf(current);
+	colorOverrides[key] = COLOR_CHOICES[(index + 1 + COLOR_CHOICES.length) % COLOR_CHOICES.length];
+	applyColorOverrides();
+	updateLegend();
+	drawAll();
+}
+
+function learnerColorKey(learner) {
+	if (snapshot && snapshot.mode === "ensemble") return learner.name;
+	return learner.id;
+}
+
+function drawOrderLearners() {
+	return [...snapshot.learners].reverse();
+}
+
+function divergenceCount(key) {
+	if (!snapshot) return 0;
+	return snapshot.learners.filter(
+		learner => learnerColorKey(learner) === key && learner.diverged
+	).length;
+}
+
+function ensembleConvergence() {
+	if (!snapshot || snapshot.mode !== "ensemble" || !landscape || !landscape.optimum) {
+		return null;
+	}
+	const criterion = readConvergenceCriterion();
+	let converged = 0;
+	for (const learner of snapshot.learners) {
+		if (learnerConvergedToTarget(learner, criterion)) {
+			converged += 1;
+		}
+	}
+	const total = Math.max(1, snapshot.learners.length);
+	return {
+		converged,
+		total,
+		fraction: converged / total,
+		...criterion,
+	};
+}
+
+function learnerConvergedToTarget(learner, criterion) {
+	if (learner.diverged) return false;
+	const trace = learner.trace || [];
+	if (trace.length < criterion.window) return false;
+	const threshold = landscape.optimum.loss + criterion.epsilon;
+	const recent = trace.slice(-criterion.window);
+	let within = 0;
+	for (const sample of recent) {
+		if (sample.loss <= threshold) within += 1;
+	}
+	return within / criterion.window >= criterion.frac_within;
+}
+
+function setupCanvas(canvas) {
+	const rect = canvas.getBoundingClientRect();
+	const dpr = window.devicePixelRatio || 1;
+	canvas.width = Math.max(1, Math.round(rect.width * dpr));
+	canvas.height = Math.max(1, Math.round(rect.height * dpr));
+	const ctx = canvas.getContext("2d");
+	ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+	return {ctx, width: rect.width, height: rect.height};
+}
+
+function drawAll() {
+	if (!snapshot || !landscape) return;
+	drawLandscape();
+	drawLoss();
+	drawThetaPlot();
+	drawVelocityPlot();
+	drawHistogram();
+}
+
+function drawLandscape() {
+	const {ctx, width, height} = setupCanvas(canvases.landscape);
+	ctx.clearRect(0, 0, width, height);
+	if (landscapeView.mode === "3d") drawLandscape3D(ctx, width, height);
+	else drawLandscape2D(ctx, width, height);
+}
+
+function drawLandscape2D(ctx, width, height) {
+	const pad = 38;
+	const xMin = landscape.x[0], xMax = landscape.x[landscape.x.length - 1];
+	const yMin = landscape.y[0], yMax = landscape.y[landscape.y.length - 1];
+	const plot = {x: pad, y: pad, w: width - 2 * pad, h: height - 2 * pad};
+	const xMid = 0.5 * (xMin + xMax);
+	const yMid = 0.5 * (yMin + yMax);
+	const scaleX = plot.w / (xMax - xMin) * landscapeView.zoom;
+	const scaleY = plot.h / (yMax - yMin) * landscapeView.zoom;
+	const sx = x => plot.x + plot.w / 2 + landscapeView.panX + (x - xMid) * scaleX;
+	const sy = y => plot.y + plot.h / 2 + landscapeView.panY - (y - yMid) * scaleY;
+
+	const nx = landscape.x.length;
+	const ny = landscape.y.length;
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(plot.x, plot.y, plot.w, plot.h);
+	ctx.clip();
+	for (let iy = 0; iy < ny - 1; iy++) {
+		for (let ix = 0; ix < nx - 1; ix++) {
+			ctx.fillStyle = heatColor(lossColorUnit(landscape.z[iy][ix]));
+			ctx.fillRect(
+				sx(landscape.x[ix]),
+				sy(landscape.y[iy + 1]),
+				Math.ceil(sx(landscape.x[ix + 1]) - sx(landscape.x[ix])) + 1,
+				Math.ceil(sy(landscape.y[iy]) - sy(landscape.y[iy + 1])) + 1,
+			);
+		}
+	}
+
+	drawLossContours(ctx, sx, sy);
+
+	if (landscape.optimum) {
+		const starSize = targetStarSize2D(sx, sy);
+		drawStar(ctx, sx(landscape.optimum.x), sy(landscape.optimum.y), starSize, starSize * 0.5);
+		drawGlobalBasin2D(ctx, sx, sy);
+	}
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		drawTraceLine(
+			ctx,
+			trace,
+			sample => ({x: sx(sample.theta[0]), y: sy(sample.theta[1])}),
+			learner.color,
+			2.6,
+		);
+	}
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		const last = trace[trace.length - 1];
+		drawEndpoint(ctx, sx(last.theta[0]), sy(last.theta[1]), learner.color, 6.5);
+	}
+	ctx.restore();
+	drawAxes(ctx, plot, "θ₁", "θ₂");
+	drawColorbar(ctx, plot);
+}
+
+function drawLandscape3D(ctx, width, height) {
+	const pad = 38;
+	const plot = {x: pad, y: pad, w: width - 2 * pad, h: height - 2 * pad};
+	const project = makeLandscapeProjector(plot);
+	const nx = landscape.x.length;
+	const ny = landscape.y.length;
+	const stride = Math.max(1, Math.floor(nx / 42));
+	const faces = [];
+
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(plot.x, plot.y, plot.w, plot.h);
+	ctx.clip();
+	ctx.fillStyle = "#fff";
+	ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+
+	for (let iy = 0; iy < ny - stride; iy += stride) {
+		for (let ix = 0; ix < nx - stride; ix += stride) {
+			const p00 = project(landscape.x[ix], landscape.y[iy], landscape.z[iy][ix]);
+			const p10 = project(landscape.x[ix + stride], landscape.y[iy], landscape.z[iy][ix + stride]);
+			const p11 = project(landscape.x[ix + stride], landscape.y[iy + stride], landscape.z[iy + stride][ix + stride]);
+			const p01 = project(landscape.x[ix], landscape.y[iy + stride], landscape.z[iy + stride][ix]);
+			const zAvg = 0.25 * (
+				landscape.z[iy][ix]
+				+ landscape.z[iy][ix + stride]
+				+ landscape.z[iy + stride][ix + stride]
+				+ landscape.z[iy + stride][ix]
+			);
+			const t = lossColorUnit(zAvg);
+			faces.push({
+				points: [p00, p10, p11, p01],
+				depth: 0.25 * (p00.depth + p10.depth + p11.depth + p01.depth),
+				color: heatColor(t),
+			});
+		}
+	}
+	faces.sort((a, b) => a.depth - b.depth);
+	for (const face of faces) {
+		ctx.fillStyle = face.color;
+		ctx.strokeStyle = "rgba(36, 42, 48, 0.12)";
+		ctx.lineWidth = 0.6;
+		ctx.beginPath();
+		ctx.moveTo(face.points[0].x, face.points[0].y);
+		for (let i = 1; i < face.points.length; i++) {
+			ctx.lineTo(face.points[i].x, face.points[i].y);
+		}
+		ctx.closePath();
+		ctx.fill();
+		ctx.stroke();
+	}
+
+	draw3DAxes(ctx, plot, project);
+	if (landscape.optimum) {
+		const p = project(landscape.optimum.x, landscape.optimum.y, landscape.optimum.loss);
+		const starSize = targetStarSize3D(project);
+		drawStar(ctx, p.x, p.y, starSize, starSize * 0.5);
+		drawGlobalBasin3D(ctx, project);
+	}
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		drawTraceLine(
+			ctx,
+			trace,
+			sample => project(sample.theta[0], sample.theta[1], sample.loss),
+			learner.color,
+			2.8,
+		);
+	}
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		const last = trace[trace.length - 1];
+		const p = project(last.theta[0], last.theta[1], last.loss);
+		drawEndpoint(ctx, p.x, p.y, learner.color, 6.5);
+	}
+	ctx.restore();
+	drawColorbar(ctx, plot);
+}
+
+function drawGlobalBasin2D(ctx, sx, sy) {
+	if (!landscape.optimum) return;
+	const level = targetDashLossLevel();
+	if (level === null) return;
+	ctx.save();
+	ctx.strokeStyle = "rgba(0, 0, 0, 0.82)";
+	ctx.lineWidth = 1.2;
+	ctx.setLineDash([6, 4]);
+	drawContourLevel(ctx, sx, sy, level);
+	ctx.restore();
+}
+
+function drawGlobalBasin3D(ctx, project) {
+	if (!landscape.optimum) return;
+	const level = targetDashLossLevel();
+	if (level === null) return;
+	ctx.save();
+	ctx.strokeStyle = "rgba(0, 0, 0, 0.82)";
+	ctx.lineWidth = 1.2;
+	ctx.setLineDash([6, 4]);
+	drawProjectedContourLevel(ctx, project, level);
+	ctx.restore();
+}
+
+function targetStarSize2D(sx, sy) {
+	if (!landscape.optimum) return 1;
+	const radius = targetStarRadius();
+	const cx = sx(landscape.optimum.x);
+	const cy = sy(landscape.optimum.y);
+	const dx = Math.abs(sx(landscape.optimum.x + radius) - cx);
+	const dy = Math.abs(sy(landscape.optimum.y + radius) - cy);
+	return Math.max(1, 0.5 * (dx + dy));
+}
+
+function targetStarSize3D(project) {
+	if (!landscape.optimum) return 1;
+	const radius = targetStarRadius();
+	const opt = landscape.optimum;
+	const center = project(opt.x, opt.y, opt.loss);
+	const xPoint = project(opt.x + radius, opt.y, opt.loss);
+	const yPoint = project(opt.x, opt.y + radius, opt.loss);
+	const dx = Math.hypot(xPoint.x - center.x, xPoint.y - center.y);
+	const dy = Math.hypot(yPoint.x - center.x, yPoint.y - center.y);
+	return Math.max(1, 0.5 * (dx + dy));
+}
+
+function targetStarRadius() {
+	return Math.max(0, numberValue("target_star_size"));
+}
+
+function targetDashLossLevel() {
+	if (!landscape.optimum) return null;
+	const epsilon = readConvergenceCriterion().epsilon;
+	if (epsilon <= 0) return null;
+	return landscape.optimum.loss + epsilon;
+}
+
+function makeLandscapeProjector(plot) {
+	const xMin = landscape.x[0], xMax = landscape.x[landscape.x.length - 1];
+	const yMin = landscape.y[0], yMax = landscape.y[landscape.y.length - 1];
+	const xMid = 0.5 * (xMin + xMax);
+	const yMid = 0.5 * (yMin + yMax);
+	const scale = 0.43 * Math.min(plot.w, plot.h) * landscapeView.zoom;
+	const yaw = landscapeView.yaw;
+	const pitch = clamp(landscapeView.pitch, 0.25, 1.2);
+	const cy = Math.cos(yaw), sy = Math.sin(yaw);
+	const groundTilt = Math.sin(pitch);
+	const depthTilt = Math.cos(pitch);
+	const heightScale = 0.95;
+	const centerX = plot.x + plot.w / 2 + landscapeView.panX;
+	const centerY = plot.y + plot.h * 0.58 + landscapeView.panY;
+	return (x, y, loss) => {
+		const x0 = 2 * (x - xMid) / (xMax - xMin);
+		const y0 = 2 * (y - yMid) / (yMax - yMin);
+		const z0 = lossUnit(loss);
+		const xr = cy * x0 - sy * y0;
+		const yr = sy * x0 + cy * y0;
+		return {
+			x: centerX + xr * scale,
+			y: centerY + yr * groundTilt * scale - z0 * heightScale * scale,
+			depth: yr * depthTilt + z0 * 0.08,
+		};
+	};
+}
+
+function lossUnit(loss) {
+	const clipped = Math.min(Math.max(loss, landscape.z_min), landscape.z_clip);
+	return Math.max(0, Math.min(1, (clipped - landscape.z_min) / (landscape.z_clip - landscape.z_min)));
+}
+
+function lossColorUnit(loss) {
+	const maxLoss = lossDisplayMax();
+	const clipped = Math.min(Math.max(loss, landscape.z_min), maxLoss);
+	if ($("loss_color_scale").value === "log") {
+		const range = Math.max(1e-12, maxLoss - landscape.z_min);
+		const offset = Math.max(1e-9, 0.01 * range);
+		return Math.max(0, Math.min(1,
+			Math.log(clipped - landscape.z_min + offset) / Math.log(range + offset)
+		));
+	}
+	return Math.max(0, Math.min(1, (clipped - landscape.z_min) / Math.max(1e-12, maxLoss - landscape.z_min)));
+}
+
+function lossDisplayMax() {
+	return landscape.z_clip;
+}
+
+function drawLossContours(ctx, sx, sy) {
+	const levels = lossContourLevels();
+	ctx.lineWidth = 0.8;
+	for (let levelIndex = 0; levelIndex < levels.length; levelIndex++) {
+		const level = levels[levelIndex];
+		const alpha = 0.18 + 0.36 * levelIndex / Math.max(1, levels.length - 1);
+		ctx.strokeStyle = `rgba(40, 48, 58, ${alpha})`;
+		drawContourLevel(ctx, sx, sy, level);
+	}
+}
+
+function drawContourLevel(ctx, sx, sy, level) {
+	forEachContourSegment(level, (a, b) => drawContourSegment(ctx, sx, sy, a, b));
+}
+
+function drawProjectedContourLevel(ctx, project, level) {
+	forEachContourSegment(level, (a, b) => {
+		const p0 = project(a[0], a[1], level);
+		const p1 = project(b[0], b[1], level);
+		ctx.beginPath();
+		ctx.moveTo(p0.x, p0.y);
+		ctx.lineTo(p1.x, p1.y);
+		ctx.stroke();
+	});
+}
+
+function forEachContourSegment(level, callback) {
+	const xs = landscape.x;
+	const ys = landscape.y;
+	for (let yi = 0; yi < ys.length - 1; yi++) {
+		for (let xi = 0; xi < xs.length - 1; xi++) {
+			const corners = [
+				[xs[xi], ys[yi], landscape.z[yi][xi]],
+				[xs[xi + 1], ys[yi], landscape.z[yi][xi + 1]],
+				[xs[xi + 1], ys[yi + 1], landscape.z[yi + 1][xi + 1]],
+				[xs[xi], ys[yi + 1], landscape.z[yi + 1][xi]],
+			];
+			const points = [];
+			for (const [a, b] of [[0, 1], [1, 2], [2, 3], [3, 0]]) {
+				const point = contourIntersection(corners[a], corners[b], level);
+				if (point !== null) points.push(point);
+			}
+			if (points.length === 2) callback(points[0], points[1]);
+			else if (points.length === 4) {
+				callback(points[0], points[1]);
+				callback(points[2], points[3]);
+			}
+		}
+	}
+}
+
+function lossContourLevels() {
+	const maxLoss = lossDisplayMax();
+	const levels = [];
+	if ($("loss_color_scale").value === "log") {
+		const range = Math.max(1e-12, maxLoss - landscape.z_min);
+		const offset = Math.max(1e-9, 0.01 * range);
+		const maxLog = Math.log(range + offset);
+		const minLog = Math.log(offset);
+		for (let i = 1; i <= 12; i++) {
+			levels.push(landscape.z_min + Math.exp(minLog + (maxLog - minLog) * i / 13) - offset);
+		}
+		return levels;
+	}
+	for (let i = 1; i <= 12; i++) {
+		levels.push(landscape.z_min + (maxLoss - landscape.z_min) * i / 13);
+	}
+	return levels;
+}
+
+function contourIntersection(a, b, level) {
+	const z0 = a[2];
+	const z1 = b[2];
+	if ((z0 < level && z1 < level) || (z0 > level && z1 > level) || z0 === z1) {
+		return null;
+	}
+	const t = (level - z0) / (z1 - z0);
+	return [
+		a[0] + t * (b[0] - a[0]),
+		a[1] + t * (b[1] - a[1]),
+	];
+}
+
+function drawContourSegment(ctx, sx, sy, a, b) {
+	ctx.beginPath();
+	ctx.moveTo(sx(a[0]), sy(a[1]));
+	ctx.lineTo(sx(b[0]), sy(b[1]));
+	ctx.stroke();
+}
+
+function draw3DAxes(ctx, plot, project) {
+	const x0 = landscape.x[0], x1 = landscape.x[landscape.x.length - 1];
+	const y0 = landscape.y[0], y1 = landscape.y[landscape.y.length - 1];
+	const base = landscape.z_min;
+	const origin = project(x0, y0, base);
+	const xEnd = project(x1, y0, base);
+	const yEnd = project(x0, y1, base);
+	const zEnd = project(x0, y0, landscape.z_clip);
+	ctx.strokeStyle = "rgba(32, 36, 42, 0.7)";
+	ctx.lineWidth = 1.2;
+	for (const end of [xEnd, yEnd, zEnd]) {
+		ctx.beginPath();
+		ctx.moveTo(origin.x, origin.y);
+		ctx.lineTo(end.x, end.y);
+		ctx.stroke();
+	}
+	ctx.fillStyle = "#30343b";
+	ctx.font = "12px ui-sans-serif, system-ui";
+	ctx.fillText("θ₁", xEnd.x + 4, xEnd.y);
+	ctx.fillText("θ₂", yEnd.x + 4, yEnd.y);
+	ctx.fillText("loss", zEnd.x + 4, zEnd.y);
+}
+
+function drawLoss() {
+	const {ctx, width, height} = setupCanvas(canvases.loss);
+	ctx.clearRect(0, 0, width, height);
+	const pad = 38;
+	const plot = {x: pad, y: pad, w: width - 2 * pad, h: height - 2 * pad};
+	const samples = snapshot.learners.flatMap(learner => learner.trace);
+	const maxStep = Math.max(10, ...samples.map(sample => sample.step));
+	const losses = samples.map(sample => sample.loss).filter(Number.isFinite);
+	const logScale = $("loss_scale").value === "log";
+	const transform = value => logScale ? Math.log10(Math.max(value, 1e-9)) : value;
+	const display = value => logScale ? `1e${value.toFixed(1)}` : value.toPrecision(3);
+	const transformed = losses.map(transform);
+	const minLoss = Math.min(...transformed);
+	const maxLoss = Math.max(...transformed);
+	const yMargin = Math.max(1e-9, 0.08 * (maxLoss - minLoss || 1));
+	const yMin = minLoss - yMargin;
+	const yMax = maxLoss + yMargin;
+	const sx = step => plot.x + step / maxStep * plot.w;
+	const sy = loss => plot.y + plot.h - (transform(loss) - yMin) / (yMax - yMin) * plot.h;
+
+	ctx.fillStyle = "#fff";
+	ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+	drawGrid(ctx, plot, 4, 4);
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		drawTraceLine(
+			ctx,
+			trace,
+			sample => ({x: sx(sample.step), y: sy(sample.loss)}),
+			learner.color,
+			2.2,
+		);
+	}
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		const last = trace[trace.length - 1];
+		drawEndpoint(ctx, sx(last.step), sy(last.loss), learner.color, 4);
+	}
+	drawAxes(ctx, plot, "iteration", "loss");
+	ctx.fillStyle = "#676b73";
+	ctx.font = "11px ui-sans-serif, system-ui";
+	ctx.fillText(display(yMax), plot.x + 5, plot.y + 13);
+	ctx.fillText(display(yMin), plot.x + 5, plot.y + plot.h - 6);
+}
+
+function drawThetaPlot() {
+	const {ctx, width, height} = setupCanvas(canvases.theta);
+	ctx.clearRect(0, 0, width, height);
+	const pad = 38;
+	const maxSteps = Math.max(1, snapshot.total_steps);
+	const plot = {x: pad, y: pad, w: width - 2 * pad, h: height - 2 * pad};
+	const thetaValues = snapshot.learners.flatMap(
+		learner => (learner.trace || []).map(sample => sample.theta[0])
+	);
+	thetaValues.push(0, landscape.x[0], landscape.x[landscape.x.length - 1]);
+	if (landscape.optimum) thetaValues.push(landscape.optimum.x);
+	const rawMin = Math.min(...thetaValues);
+	const rawMax = Math.max(...thetaValues);
+	const margin = Math.max(0.1, 0.06 * (rawMax - rawMin || 1));
+	const xMin = rawMin - margin;
+	const xMax = rawMax + margin;
+	const sx = x => plot.x + (x - xMin) / (xMax - xMin) * plot.w;
+	const sy = t => plot.y + plot.h - t / maxSteps * plot.h;
+
+	ctx.fillStyle = "#fff";
+	ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(plot.x, plot.y, plot.w, plot.h);
+	ctx.clip();
+	drawGrid(ctx, plot, 4, 4);
+	drawThetaMinimum(ctx, plot, sx);
+
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		drawTraceLine(
+			ctx,
+			trace,
+			sample => ({x: sx(sample.theta[0]), y: sy(sample.step)}),
+			learner.color,
+			2.4,
+		);
+	}
+	for (const learner of drawOrderLearners()) {
+		drawNullGuides(ctx, learner, sx, sy);
+	}
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length === 0) continue;
+		const last = trace[trace.length - 1];
+		drawEndpoint(ctx, sx(last.theta[0]), sy(last.step), learner.color, 4.4);
+	}
+	ctx.restore();
+	drawAxes(ctx, plot, "θ₁", "iteration");
+	drawXAxisTick(ctx, plot, sx(0), "0");
+}
+
+function drawThetaMinimum(ctx, plot, sx) {
+	if (!landscape.optimum) return;
+	const x = sx(landscape.optimum.x);
+	ctx.save();
+	ctx.setLineDash([5, 5]);
+	ctx.strokeStyle = "rgba(146, 104, 0, 0.85)";
+	ctx.lineWidth = 1.4;
+	ctx.beginPath();
+	ctx.moveTo(x, plot.y);
+	ctx.lineTo(x, plot.y + plot.h);
+	ctx.stroke();
+	ctx.setLineDash([]);
+	ctx.fillStyle = "#8a6400";
+	ctx.font = "11px ui-sans-serif, system-ui";
+	ctx.fillText("θ*", x + 4, plot.y + 13);
+	ctx.restore();
+}
+
+function drawVelocityPlot() {
+	const {ctx, width, height} = setupCanvas(canvases.velocity);
+	ctx.clearRect(0, 0, width, height);
+	const pad = 38;
+	const maxSteps = Math.max(1, snapshot.total_steps);
+	const plot = {x: pad, y: pad, w: width - 2 * pad, h: height - 2 * pad};
+	let maxMagnitude = 1;
+	for (const learner of snapshot.learners) {
+		for (const sample of (learner.trace || []).slice(1)) {
+			const velocity = sample.velocity[0];
+			if (Number.isFinite(velocity)) {
+				maxMagnitude = Math.max(maxMagnitude, Math.abs(velocity));
+			}
+		}
+	}
+	const limit = Math.max(1.2, 1.08 * maxMagnitude);
+	const sx = v => plot.x + (v + limit) / (2 * limit) * plot.w;
+	const sy = t => plot.y + plot.h - t / maxSteps * plot.h;
+
+	ctx.fillStyle = "#fff";
+	ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+	ctx.save();
+	ctx.beginPath();
+	ctx.rect(plot.x, plot.y, plot.w, plot.h);
+	ctx.clip();
+	drawGrid(ctx, plot, 4, 4);
+	for (const mark of [-1, 0, 1]) {
+		ctx.setLineDash(mark === 0 ? [] : [5, 5]);
+		ctx.strokeStyle = mark === 0 ? "rgba(48, 52, 59, 0.38)" : "rgba(22, 26, 33, 0.78)";
+		ctx.lineWidth = mark === 0 ? 1.1 : 1.7;
+		ctx.beginPath();
+		ctx.moveTo(sx(mark), plot.y);
+		ctx.lineTo(sx(mark), plot.y + plot.h);
+		ctx.stroke();
+	}
+	ctx.setLineDash([]);
+
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length < 2) continue;
+		drawTraceLine(
+			ctx,
+			trace.slice(1),
+			sample => ({x: sx(sample.velocity[0]), y: sy(sample.step)}),
+			learner.color,
+			2.0,
+		);
+	}
+	for (const learner of drawOrderLearners()) {
+		const trace = learner.trace;
+		if (trace.length < 2) continue;
+		const last = trace[trace.length - 1];
+		drawEndpoint(ctx, sx(last.velocity[0]), sy(last.step), learner.color, 4.4);
+	}
+	ctx.restore();
+	drawAxes(ctx, plot, "Δθ₁ / η", "iteration");
+	ctx.fillStyle = "#676b73";
+	ctx.font = "10px ui-sans-serif, system-ui";
+	ctx.fillText("-c", sx(-1) - 6, plot.y + 11);
+	ctx.fillText("0", sx(0) - 3, plot.y + 11);
+	ctx.fillText("+c", sx(1) - 7, plot.y + 11);
+	if (limit > 1.25) {
+		ctx.fillText(`range ±${limit.toPrecision(3)}`, plot.x + 5, plot.y + plot.h - 6);
+	}
+	drawXAxisTick(ctx, plot, sx(-1), "-1");
+	drawXAxisTick(ctx, plot, sx(0), "0");
+	drawXAxisTick(ctx, plot, sx(1), "+1");
+}
+
+function drawHistogram() {
+	const {ctx, width, height} = setupCanvas(canvases.hist);
+	ctx.clearRect(0, 0, width, height);
+	const pad = 38;
+	const plot = {x: pad, y: pad, w: width - 2 * pad, h: height - 2 * pad};
+	const bins = 52;
+	const groups = histogramGroups();
+	const histograms = groups.map(group => {
+		const counts = new Array(bins).fill(0);
+		for (const value of group.kinetic_samples) {
+			if (!Number.isFinite(value)) continue;
+			const unit = momentumUnit(value);
+			const index = Math.max(0, Math.min(bins - 1, Math.floor(unit * bins)));
+			counts[index] += 1;
+		}
+		return {group, counts};
+	});
+	const maxCount = Math.max(1, ...histograms.flatMap(item => item.counts));
+	const sx = value => plot.x + momentumUnit(value) * plot.w;
+	const sxUnit = unit => plot.x + unit * plot.w;
+	const sy = count => plot.y + plot.h - count / maxCount * plot.h;
+
+	ctx.fillStyle = "#fff";
+	ctx.fillRect(plot.x, plot.y, plot.w, plot.h);
+	if (groups.length === 0) {
+		drawAxes(ctx, plot, "momentum / ρ", "count");
+		ctx.fillStyle = "#676b73";
+		ctx.font = "12px ui-sans-serif, system-ui";
+		ctx.fillText(
+			"No supported relativistic optimizer in this run.",
+			plot.x + 12,
+			plot.y + 24,
+		);
+		return;
+	}
+	ctx.strokeStyle = "#e4dfd3";
+	ctx.lineWidth = 1;
+	for (const mark of [-1, -0.1, 0, 0.1, 1]) {
+		ctx.setLineDash(mark === 0 ? [] : [5, 5]);
+		ctx.strokeStyle = mark === 0 ? "rgba(48, 52, 59, 0.36)" : "#e0d4be";
+		ctx.beginPath();
+		ctx.moveTo(sx(mark), plot.y);
+		ctx.lineTo(sx(mark), plot.y + plot.h);
+		ctx.stroke();
+	}
+	ctx.setLineDash([]);
+
+	const groupWidth = plot.w / bins;
+	for (const {group, counts} of histograms) {
+		ctx.fillStyle = hexToRgba(group.color, 0.38);
+		for (let i = 0; i < bins; i++) {
+			const x = plot.x + i * groupWidth;
+			const y = sy(counts[i]);
+			ctx.fillRect(x + 1, y, Math.max(1, groupWidth - 2), plot.y + plot.h - y);
+		}
+	}
+
+	drawAxes(ctx, plot, "momentum / ρ", "count");
+	ctx.fillStyle = "#676b73";
+	ctx.font = "11px ui-sans-serif, system-ui";
+	ctx.font = "10px ui-sans-serif, system-ui";
+	ctx.fillText("ultra-relativistic", sxUnit(0.03), plot.y + 14);
+	ctx.fillText("relativistic", sx(-0.65), plot.y + 14);
+	ctx.fillText("classical", sx(-0.08), plot.y + 14);
+	ctx.fillText("relativistic", sx(0.38), plot.y + 14);
+	ctx.fillText("ultra-relativistic", sxUnit(0.87), plot.y + 14);
+	ctx.fillText("-∞", plot.x, plot.y + plot.h + 15);
+	ctx.fillText("+∞", plot.x + plot.w - 14, plot.y + plot.h + 15);
+	ctx.fillText("-1", sx(-1) - 6, plot.y + plot.h + 15);
+	ctx.fillText("0", sx(0) - 3, plot.y + plot.h + 15);
+	ctx.fillText("+1", sx(1) - 6, plot.y + plot.h + 15);
+	ctx.save();
+	ctx.translate(sx(1) + 6, plot.y + 1);
+	ctx.rotate(Math.PI / 2);
+	ctx.fillText("ρ=mc", 0, 0);
+	ctx.restore();
+
+	const lines = groups.map(group => {
+		const c = kineticRegimeCounts(group.kinetic_samples);
+		return {
+			color: group.color,
+			text: `${group.name}: C ${c.classical} · R ${c.relativistic} · U ${c.ultra}`,
+		};
+	});
+	const boxW = Math.min(plot.w - 12, Math.max(150, ...lines.map(line => ctx.measureText(line.text).width + 12)));
+	const boxH = 8 + 14 * lines.length;
+	const boxX = plot.x + plot.w * 0.25 - boxW / 2;
+	const boxY = plot.y + plot.h - boxH - 190;
+	ctx.fillStyle = "rgba(255, 255, 255, 0.88)";
+	ctx.fillRect(boxX, boxY, boxW, boxH);
+	ctx.strokeStyle = "rgba(215, 212, 203, 0.9)";
+	ctx.strokeRect(boxX, boxY, boxW, boxH);
+	let y = boxY + 14;
+	for (const line of lines) {
+		ctx.fillStyle = line.color;
+		ctx.fillText(line.text, boxX + 6, y);
+		y += 14;
+	}
+}
+
+function histogramGroups() {
+	const groups = new Map();
+	for (const learner of snapshot.learners) {
+		if (!isRelativisticKineticOptimizer(learner)) continue;
+		const key = snapshot.mode === "ensemble" ? learner.name : learner.id;
+		if (!groups.has(key)) {
+			groups.set(key, {
+				name: learner.name,
+				color: learner.color,
+				kinetic_samples: [],
+			});
+		}
+		groups.get(key).kinetic_samples.push(...(learner.kinetic_samples || []));
+	}
+	return [...groups.values()];
+}
+
+function isRelativisticKineticOptimizer(learner) {
+	return learner.kinetic_regimes_supported === true;
+}
+
+function momentumUnit(value) {
+	return 0.5 + Math.atan(value) / Math.PI;
+}
+
+function kineticRegimeCounts(values) {
+	const counts = {classical: 0, relativistic: 0, ultra: 0};
+	for (const value of values) {
+		const magnitude = Math.abs(value);
+		if (magnitude <= 0.1) counts.classical += 1;
+		else if (magnitude < 1) counts.relativistic += 1;
+		else counts.ultra += 1;
+	}
+	return counts;
+}
+
+function drawGrid(ctx, plot, rows, cols) {
+	ctx.strokeStyle = "#e5e0d6";
+	ctx.lineWidth = 1;
+	for (let i = 1; i < rows; i++) {
+		const y = plot.y + i / rows * plot.h;
+		ctx.beginPath();
+		ctx.moveTo(plot.x, y);
+		ctx.lineTo(plot.x + plot.w, y);
+		ctx.stroke();
+	}
+	for (let i = 1; i < cols; i++) {
+		const x = plot.x + i / cols * plot.w;
+		ctx.beginPath();
+		ctx.moveTo(x, plot.y);
+		ctx.lineTo(x, plot.y + plot.h);
+		ctx.stroke();
+	}
+}
+
+function drawNullGuides(ctx, learner, sx, sy) {
+	if (!isLightlikeOptimizer(learner)) return;
+	const trace = renderTraceSamples(learner.trace);
+	if (trace.length < 2) return;
+	ctx.save();
+	ctx.setLineDash([4, 4]);
+	ctx.strokeStyle = "rgba(32, 36, 42, 0.62)";
+	ctx.lineWidth = 1.3;
+	let start = trace[0];
+	let sign = Math.sign(trace[1].velocity[0]);
+	for (let i = 2; i < trace.length; i++) {
+		const nextSign = Math.sign(trace[i].velocity[0]);
+		if (nextSign !== 0 && sign !== 0 && nextSign !== sign) {
+			const end = trace[i - 1];
+			ctx.beginPath();
+			ctx.moveTo(sx(start.theta[0]), sy(start.step));
+			ctx.lineTo(sx(end.theta[0]), sy(end.step));
+			ctx.stroke();
+			start = end;
+			sign = nextSign;
+		}
+	}
+	const end = trace[trace.length - 1];
+	ctx.beginPath();
+	ctx.moveTo(sx(start.theta[0]), sy(start.step));
+	ctx.lineTo(sx(end.theta[0]), sy(end.step));
+	ctx.stroke();
+	ctx.restore();
+}
+
+function isLightlikeOptimizer(learner) {
+	return (learner.optimizer === "RLion" && learner.mass === 0)
+		|| (learner.optimizer === "MassiveLion" && learner.mass === 0 && !learner.adaptive_mass)
+		|| (learner.optimizer === "MassiveSignum" && learner.mass === 0 && !learner.adaptive_mass)
+		|| (learner.optimizer === "MassiveLion" && learner.update_mode === "coordinate"
+			&& learner.mass === 0 && learner.kappa === 0 && learner.weight_decay === 0);
+}
+
+function drawColorbar(ctx, plot) {
+	const barW = 10;
+	const barH = Math.min(90, plot.h * 0.25);
+	const x = plot.x + plot.w - barW - 12;
+	const y = plot.y + 12;
+	for (let i = 0; i < barH; i++) {
+		const t = 1 - i / Math.max(1, barH - 1);
+		ctx.fillStyle = heatColor(t);
+		ctx.fillRect(x, y + i, barW, 1);
+	}
+	ctx.strokeStyle = "rgba(48, 52, 59, 0.55)";
+	ctx.strokeRect(x, y, barW, barH);
+	ctx.fillStyle = "#30343b";
+	ctx.font = "10px ui-sans-serif, system-ui";
+	ctx.fillText(lossDisplayMax().toPrecision(2), x - 2, y - 4);
+	ctx.fillText(landscape.z_min.toPrecision(2), x - 2, y + barH + 12);
+}
+
+function drawStar(ctx, x, y, outer, inner) {
+	ctx.save();
+	ctx.fillStyle = "#f5c542";
+	ctx.strokeStyle = "#30343b";
+	ctx.lineWidth = 1.3;
+	ctx.beginPath();
+	for (let i = 0; i < 10; i++) {
+		const radius = i % 2 === 0 ? outer : inner;
+		const angle = -Math.PI / 2 + i * Math.PI / 5;
+		const px = x + radius * Math.cos(angle);
+		const py = y + radius * Math.sin(angle);
+		if (i === 0) ctx.moveTo(px, py);
+		else ctx.lineTo(px, py);
+	}
+	ctx.closePath();
+	ctx.fill();
+	ctx.stroke();
+	ctx.restore();
+}
+
+function drawEndpoint(ctx, x, y, color, radius = 4) {
+	ctx.save();
+	ctx.fillStyle = color;
+	ctx.strokeStyle = "#ffffff";
+	ctx.lineWidth = 1.5;
+	ctx.beginPath();
+	ctx.arc(x, y, radius, 0, Math.PI * 2);
+	ctx.fill();
+	ctx.stroke();
+	ctx.restore();
+}
+
+function drawTraceLine(ctx, samples, pointForSample, color, baseWidth) {
+	if (samples.length === 0) return;
+	const points = renderTraceSamples(samples).map(pointForSample);
+	if (points.length === 1) {
+		drawEndpoint(ctx, points[0].x, points[0].y, color, baseWidth);
+		return;
+	}
+
+	const taper = $("trajectory_taper").checked;
+	const fade = $("trajectory_fade").checked;
+	ctx.save();
+	ctx.lineCap = "round";
+	ctx.lineJoin = "round";
+	if (!taper && !fade) {
+		ctx.strokeStyle = color;
+		ctx.lineWidth = baseWidth;
+		ctx.beginPath();
+		ctx.moveTo(points[0].x, points[0].y);
+		for (let i = 1; i < points.length; i++) {
+			ctx.lineTo(points[i].x, points[i].y);
+		}
+		ctx.stroke();
+		ctx.restore();
+		return;
+	}
+
+	for (let i = 1; i < points.length; i++) {
+		const progress = i / Math.max(1, points.length - 1);
+		const width = taper ? baseWidth * (0.35 + 0.65 * progress) : baseWidth;
+		const alpha = fade ? (0.12 + 0.88 * progress) : 1.0;
+		ctx.strokeStyle = colorWithAlpha(color, alpha);
+		ctx.lineWidth = width;
+		ctx.beginPath();
+		ctx.moveTo(points[i - 1].x, points[i - 1].y);
+		ctx.lineTo(points[i].x, points[i].y);
+		ctx.stroke();
+	}
+	ctx.restore();
+}
+
+function renderTraceSamples(samples) {
+	if (!snapshot || snapshot.mode !== "ensemble" || samples.length <= MAX_ENSEMBLE_RENDER_POINTS) {
+		return samples;
+	}
+	const tailCount = Math.min(ENSEMBLE_RENDER_TAIL_POINTS, samples.length);
+	const tailStart = samples.length - tailCount;
+	const headBudget = MAX_ENSEMBLE_RENDER_POINTS - tailCount;
+	const result = [];
+	for (let i = 0; i < headBudget; i++) {
+		const index = Math.round(i * Math.max(0, tailStart - 1) / Math.max(1, headBudget - 1));
+		result.push(samples[index]);
+	}
+	for (let i = tailStart; i < samples.length; i++) {
+		result.push(samples[i]);
+	}
+	return result;
+}
+
+function drawAxes(ctx, plot, xLabel, yLabel) {
+	ctx.strokeStyle = "#30343b";
+	ctx.lineWidth = 1.2;
+	ctx.beginPath();
+	ctx.moveTo(plot.x, plot.y + plot.h);
+	ctx.lineTo(plot.x + plot.w, plot.y + plot.h);
+	ctx.moveTo(plot.x, plot.y);
+	ctx.lineTo(plot.x, plot.y + plot.h);
+	ctx.stroke();
+	ctx.fillStyle = "#30343b";
+	ctx.font = "12px ui-sans-serif, system-ui";
+	ctx.fillText(xLabel, plot.x + plot.w - ctx.measureText(xLabel).width, plot.y + plot.h + 24);
+	ctx.save();
+	ctx.translate(plot.x - 25, plot.y + 48);
+	ctx.rotate(-Math.PI / 2);
+	ctx.fillText(yLabel, 0, 0);
+	ctx.restore();
+}
+
+function drawXAxisTick(ctx, plot, x, label) {
+	ctx.save();
+	ctx.strokeStyle = "rgba(48, 52, 59, 0.65)";
+	ctx.lineWidth = 1;
+	ctx.beginPath();
+	ctx.moveTo(x, plot.y + plot.h);
+	ctx.lineTo(x, plot.y + plot.h + 4);
+	ctx.stroke();
+	ctx.fillStyle = "#30343b";
+	ctx.font = "11px ui-sans-serif, system-ui";
+	ctx.fillText(label, x - ctx.measureText(label).width / 2, plot.y + plot.h + 16);
+	ctx.restore();
+}
+
+function heatColor(t) {
+	const a = [246, 248, 244];
+	const b = [162, 197, 210];
+	const c = [224, 132, 91];
+	const left = t < 0.58;
+	const u = left ? t / 0.58 : (t - 0.58) / 0.42;
+	const p = left ? a : b;
+	const q = left ? b : c;
+	const r = Math.round(p[0] + u * (q[0] - p[0]));
+	const g = Math.round(p[1] + u * (q[1] - p[1]));
+	const bl = Math.round(p[2] + u * (q[2] - p[2]));
+	return `rgb(${r}, ${g}, ${bl})`;
+}
+
+function hexToRgba(hex, alpha) {
+	const value = hex.replace("#", "");
+	const r = parseInt(value.slice(0, 2), 16);
+	const g = parseInt(value.slice(2, 4), 16);
+	const b = parseInt(value.slice(4, 6), 16);
+	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function colorWithAlpha(color, alpha) {
+	if (color.startsWith("#")) return hexToRgba(color, alpha);
+	return color;
+}
+
+function clamp(value, low, high) {
+	return Math.max(low, Math.min(high, value));
+}
+
+function zoomLandscape(factor) {
+	landscapeView.zoom = clamp(landscapeView.zoom * factor, 0.45, 4.5);
+	drawLandscape();
+}
+
+function resetLandscapeCamera() {
+	landscapeView.zoom = 1;
+	landscapeView.panX = 0;
+	landscapeView.panY = 0;
+	landscapeView.yaw = -0.72;
+	landscapeView.pitch = 0.72;
+	drawLandscape();
+}
+
+canvases.landscape.addEventListener("pointerdown", event => {
+	event.preventDefault();
+	landscapeView.dragging = true;
+	landscapeView.dragMode = (
+		landscapeView.mode === "2d"
+		|| event.button === 1
+		|| event.altKey
+	) ? "pan" : "rotate";
+	landscapeView.lastX = event.clientX;
+	landscapeView.lastY = event.clientY;
+	canvases.landscape.setPointerCapture(event.pointerId);
+});
+canvases.landscape.addEventListener("pointermove", event => {
+	if (!landscapeView.dragging) return;
+	const dx = event.clientX - landscapeView.lastX;
+	const dy = event.clientY - landscapeView.lastY;
+	landscapeView.lastX = event.clientX;
+	landscapeView.lastY = event.clientY;
+	if (landscapeView.dragMode === "rotate" && landscapeView.mode === "3d") {
+		landscapeView.yaw += dx * 0.012;
+		landscapeView.pitch = clamp(landscapeView.pitch - dy * 0.008, 0.25, 1.2);
+	} else {
+		landscapeView.panX += dx;
+		landscapeView.panY += dy;
+	}
+	drawLandscape();
+});
+for (const eventName of ["pointerup", "pointercancel", "pointerleave"]) {
+	canvases.landscape.addEventListener(eventName, () => {
+		landscapeView.dragging = false;
+	});
+}
+canvases.landscape.addEventListener("auxclick", event => {
+	event.preventDefault();
+});
+canvases.landscape.addEventListener("contextmenu", event => {
+	event.preventDefault();
+});
+canvases.landscape.addEventListener("wheel", event => {
+	event.preventDefault();
+	zoomLandscape(Math.exp(-event.deltaY * 0.001));
+}, {passive: false});
+
+for (const id of [
+	"mode", "ensemble_optimizer", "ensemble_count", "max_steps", "theta0_x", "theta0_y",
+	"landscape_kind", "x_min", "x_max", "y_min", "y_max", "target_x", "target_y",
+	"sharpness", "valley_amp", "valley_freq", "valley_tilt", "along_curvature",
+	"ripple_amp", "ripple_freq", "boundary", "noise_mode", "noise_distribution", "noise_std", "noise_seed",
+	"noise_xi_distribution", "noise_sigma0", "noise_sigma1", "noise_tail_p",
+	"noise_tail_margin", "noise_batch_size", "noise_hessian_scale", "noise_hessian_power",
+	"shared_lr_value", "shared_momentum_value", "shared_gradient_injection_value",
+	"shared_mass_value", "shared_variance_value",
+]) {
+	$(id).addEventListener("input", () => { needsReset = true; });
+}
+for (const id of [
+	"shared_lr_value", "shared_momentum_value", "shared_gradient_injection_value",
+	"shared_mass_value", "shared_variance_value",
+]) {
+	$(id).addEventListener("input", syncSharedOptimizerValues);
+}
+$("mode").addEventListener("change", () => {
+	updateModeControls();
+	needsReset = true;
+});
+$("landscape_kind").addEventListener("change", () => {
+	applyLandscapePreset($("landscape_kind").value);
+	needsReset = true;
+});
+$("noise_mode").addEventListener("change", () => {
+	if ($("noise_mode").value === "yu") {
+		applyYuNoiseDefaults();
+	}
+	if ($("noise_mode").value === "hessian") {
+		applyHessianNoiseDefaults();
+	}
+	updateNoiseControls();
+	needsReset = true;
+});
+$("noise_enabled").addEventListener("change", () => {
+	updateNoiseControls();
+	needsReset = true;
+});
+$("shared_lr").addEventListener("change", () => {
+	updateSharedLocks();
+	needsReset = true;
+});
+$("shared_beta").addEventListener("change", () => {
+	updateSharedLocks();
+	needsReset = true;
+});
+$("landscape_view").addEventListener("change", () => {
+	landscapeView.mode = $("landscape_view").value;
+	drawLandscape();
+});
+$("loss_color_scale").addEventListener("change", () => {
+	if (landscape) drawLandscape();
+});
+$("landscape_zoom_out").addEventListener("click", () => zoomLandscape(0.82));
+$("landscape_zoom_in").addEventListener("click", () => zoomLandscape(1.22));
+$("landscape_reset_view").addEventListener("click", resetLandscapeCamera);
+$("trajectory_taper").addEventListener("change", drawAll);
+$("trajectory_fade").addEventListener("change", drawAll);
+$("loss_scale").addEventListener("change", drawAll);
+for (const id of ["target_star_size", "convergence_window", "convergence_frac_within"]) {
+	$(id).addEventListener("input", () => {
+		updateLegend();
+		drawAll();
+	});
+}
+$("convergence_epsilon").addEventListener("input", () => {
+	syncRadiusFromEpsilon();
+	updateLegend();
+	drawAll();
+});
+$("target_dash_radius").addEventListener("input", () => {
+	syncEpsilonFromRadius();
+	updateLegend();
+	drawAll();
+});
+$("runBtn").addEventListener("click", run);
+$("pauseBtn").addEventListener("click", pause);
+$("stepBackBtn").addEventListener("click", () => {
+	stepBackward().catch(reportSimulationError);
+});
+$("stepForwardBtn").addEventListener("click", () => {
+	manualStepForward().catch(reportSimulationError);
+});
+$("resetBtn").addEventListener("click", () => {
+	resetSimulation().catch(reportSimulationError);
+});
+$("exportBtn").addEventListener("click", () => {
+	exportConfig().catch(error => {
+		if (!isAbortError(error)) alert(error.message);
+	});
+});
+$("importBtn").addEventListener("click", () => {
+	importConfig().catch(error => {
+		if (!isAbortError(error)) alert(error.message);
+	});
+});
+document.addEventListener("dragover", event => {
+	if (!dragEventHasFiles(event)) return;
+	event.preventDefault();
+	document.body.classList.add("drag-config");
+});
+document.addEventListener("dragleave", event => {
+	if (!dragEventHasFiles(event)) return;
+	if (
+		event.clientX <= 0 || event.clientY <= 0 ||
+		event.clientX >= window.innerWidth || event.clientY >= window.innerHeight
+	) {
+		document.body.classList.remove("drag-config");
+	}
+});
+document.addEventListener("drop", event => {
+	if (!dragEventHasFiles(event)) return;
+	event.preventDefault();
+	document.body.classList.remove("drag-config");
+	const files = Array.from(event.dataTransfer.files || []);
+	const file = files.find(item => item.name.toLowerCase().endsWith(".json")) || files[0];
+	importConfigFile(file).catch(error => alert(error.message));
+});
+document.addEventListener("dragend", () => document.body.classList.remove("drag-config"));
+$("addOptimizerBtn").addEventListener("click", () => addOptimizerRow("MassiveLion"));
+window.addEventListener("resize", drawAll);
+
+(async function init() {
+	defaults = await api("/api/defaults");
+	addOptimizerRow("MassiveLion");
+	addOptimizerRow("Lion");
+	addOptimizerRow("CurvatureAwareSGD");
+	addOptimizerRow("CurvatureAwareAdamW");
+	addOptimizerRow("Signum");
+	addOptimizerRow("MassiveSignum");
+	addOptimizerRow("Adam");
+	addOptimizerRow("SGD");
+	updateModeControls();
+	updateNoiseControls();
+	updateSharedLocks();
+	await resetSimulation();
+})();
+</script>
+</body>
+</html>

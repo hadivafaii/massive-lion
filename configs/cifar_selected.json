@@ -1,0 +1,145 @@
+{
+  "experiment": "cifar",
+  "description": "Ten seed-0-selected configurations from the current main table, repeated at seeds 0\u20136.",
+  "sources": [
+    "paper/massive_lion_iclr2027/tables/cifar_main.tex",
+    "gra/experiments/sweep/sweep_configs/2026_09_23__final_seed_sweep.json (first configuration of each pair)"
+  ],
+  "fixed": {
+    "steps": 80000,
+    "batch_size": 256,
+    "eval_every": 5000,
+    "log_every": 1000,
+    "min_lr": 1e-05,
+    "compile": true,
+    "amp": true,
+    "kinematics": "minkowski"
+  },
+  "stages": [
+    {
+      "grid": {
+        "seed": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "cases": [
+        {
+          "label": "M-Lion (adaptive)",
+          "section": "Lion",
+          "optim": "m_lion",
+          "lr": 0.001,
+          "weight_decay": 1,
+          "beta1": 0.7,
+          "beta2": 0.95,
+          "mass": 1,
+          "adaptive_mass": true
+        },
+        {
+          "label": "M-Lion (fixed)",
+          "section": "Lion",
+          "optim": "m_lion",
+          "lr": 0.008,
+          "weight_decay": 0.1,
+          "beta1": 0.8,
+          "beta2": 0.9,
+          "mass": 10,
+          "adaptive_mass": false
+        },
+        {
+          "label": "Curvature-aware SS AdamW",
+          "section": "Lion",
+          "optim": "m_lion",
+          "lr": 0.008,
+          "weight_decay": 0.1,
+          "beta1": 0.7,
+          "beta2": 0.9,
+          "mass": 0,
+          "adaptive_mass": true
+        },
+        {
+          "label": "Lion",
+          "section": "Lion",
+          "optim": "lion",
+          "lr": 0.003,
+          "weight_decay": 0.1,
+          "beta1": 0.8,
+          "beta2": 0.9,
+          "mass": 0,
+          "adaptive_mass": false
+        },
+        {
+          "label": "M-Signum (adaptive)",
+          "section": "Signum",
+          "optim": "m_signum",
+          "lr": 0.0005,
+          "weight_decay": 1,
+          "beta1": 0.9,
+          "beta2": 0.9,
+          "mass": 1,
+          "adaptive_mass": true
+        },
+        {
+          "label": "M-Signum (fixed)",
+          "section": "Signum",
+          "optim": "m_signum",
+          "lr": 0.008,
+          "weight_decay": 0.1,
+          "beta1": 0.7,
+          "beta2": 0.7,
+          "mass": 10,
+          "adaptive_mass": false
+        },
+        {
+          "label": "SS AdamW",
+          "section": "Signum",
+          "optim": "ss_adamw",
+          "lr": 0.008,
+          "weight_decay": 0.1,
+          "beta1": 0.9,
+          "beta2": 0.9,
+          "mass": 0,
+          "adaptive_mass": true
+        },
+        {
+          "label": "Signum",
+          "section": "Signum",
+          "optim": "signum",
+          "lr": 0.001,
+          "weight_decay": 1,
+          "beta1": 0.99,
+          "beta2": 0.99,
+          "mass": 0,
+          "adaptive_mass": false
+        },
+        {
+          "label": "SGD",
+          "section": "SGD",
+          "optim": "sgd",
+          "lr": 0.001,
+          "weight_decay": 1,
+          "beta1": 0.7,
+          "beta2": 0.7,
+          "mass": 0,
+          "adaptive_mass": false
+        },
+        {
+          "label": "QHM",
+          "section": "SGD",
+          "optim": "qhm",
+          "lr": 0.003,
+          "weight_decay": 1,
+          "beta1": 0.5,
+          "beta2": 0.9,
+          "mass": 0,
+          "adaptive_mass": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,316 @@
+[
+  {
+    "name": "random_confirm_heterogeneous_3",
+    "landscape": "heterogeneous",
+    "batch_size": 3,
+    "steps": 500,
+    "initialization": "gaussian",
+    "factor": "eigenvector",
+    "seed_start": 1000,
+    "n_seeds": 128,
+    "configs": [
+      {
+        "beta": 0.95,
+        "zeta": 0,
+        "lr": 0.022627416997969524,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.01,
+        "lr": 0.022627416997969524,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.025,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.05,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.1,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.2,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.4,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.8,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0,
+        "lr": 0.022627416997969524,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.01,
+        "lr": 0.022627416997969524,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.025,
+        "lr": 0.022627416997969524,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.05,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.1,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.2,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.4,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.8,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.01,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.025,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.05,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.1,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.2,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.4,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.8,
+        "lr": 0.022627416997969524,
+        "selection": "matched_lr"
+      }
+    ],
+    "input_fixture": "confirmation_inputs.json"
+  },
+  {
+    "name": "random_confirm_heterogeneous_9",
+    "landscape": "heterogeneous",
+    "batch_size": 9,
+    "steps": 500,
+    "initialization": "gaussian",
+    "factor": "eigenvector",
+    "seed_start": 1000,
+    "n_seeds": 128,
+    "configs": [
+      {
+        "beta": 0.95,
+        "zeta": 0,
+        "lr": 0.04525483399593905,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.01,
+        "lr": 0.0905096679918781,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.025,
+        "lr": 0.064,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.05,
+        "lr": 0.04525483399593905,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.1,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.2,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.4,
+        "lr": 0.032,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.8,
+        "lr": 0.022627416997969524,
+        "selection": "auc"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0,
+        "lr": 0.04525483399593905,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.01,
+        "lr": 0.0905096679918781,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.025,
+        "lr": 0.064,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.05,
+        "lr": 0.04525483399593905,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.1,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.2,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.4,
+        "lr": 0.032,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.8,
+        "lr": 0.022627416997969524,
+        "selection": "endpoint"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.01,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.025,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.05,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.1,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.2,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.4,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      },
+      {
+        "beta": 0.95,
+        "zeta": 0.8,
+        "lr": 0.04525483399593905,
+        "selection": "matched_lr"
+      }
+    ],
+    "input_fixture": "confirmation_inputs.json"
+  }
+]

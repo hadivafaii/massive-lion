@@ -1,0 +1,160 @@
+{
+  "experiment": "language",
+  "description": "All 16 confirmation configurations at seeds 100\u2013106: 112 runs; seed 100 exploratory, 101\u2013106 fresh.",
+  "sources": [
+    "gra/experiments/sweep/sweep_configs/2026_09_24__secret_sauce_confirmation_96.json (seeds extended to include reference seed 100)",
+    "paper/massive_lion_iclr2027/submitted.tex (Confirmation design and evaluation)"
+  ],
+  "fixed": {
+    "steps": 6200,
+    "warmup_steps": 620,
+    "min_lr": 1e-05,
+    "micro_batch_size": 32,
+    "accumulation": 8,
+    "target_batch_size": 256,
+    "seq_len": 2048,
+    "vocab_size": 50280,
+    "d_model": 768,
+    "n_layers": 12,
+    "n_heads": 12,
+    "dtype": "bfloat16",
+    "compile": true,
+    "weight_decay": 0.1,
+    "mass": 0,
+    "adaptive_mass": true,
+    "kinematics": "minkowski",
+    "valid_tokens": 100000000,
+    "num_workers": 4,
+    "log_every": 1,
+    "optim": "m_lion"
+  },
+  "stages": [
+    {
+      "grid": {
+        "seed": [
+          100,
+          101,
+          102,
+          103,
+          104,
+          105,
+          106
+        ]
+      },
+      "cases": [
+        {
+          "lr": 0.008,
+          "beta1": 0.95,
+          "beta2": 0.95,
+          "grad_clip": 1,
+          "label": "SS AdamW"
+        },
+        {
+          "lr": 0.008,
+          "beta1": 0.938125,
+          "beta2": 0.95,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.008,
+          "beta1": 0.92625,
+          "beta2": 0.95,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.008,
+          "beta1": 0.95,
+          "beta2": 0.95,
+          "grad_clip": 0,
+          "label": "SS AdamW"
+        },
+        {
+          "lr": 0.008,
+          "beta1": 0.938125,
+          "beta2": 0.95,
+          "grad_clip": 0,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.008,
+          "beta1": 0.92625,
+          "beta2": 0.95,
+          "grad_clip": 0,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.012,
+          "beta1": 0.975,
+          "beta2": 0.975,
+          "grad_clip": 1,
+          "label": "SS AdamW"
+        },
+        {
+          "lr": 0.012,
+          "beta1": 0.950625,
+          "beta2": 0.975,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.012,
+          "beta1": 0.92625,
+          "beta2": 0.975,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.016,
+          "beta1": 0.9,
+          "beta2": 0.9,
+          "grad_clip": 1,
+          "label": "SS AdamW"
+        },
+        {
+          "lr": 0.016,
+          "beta1": 0.8775,
+          "beta2": 0.9,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.016,
+          "beta1": 0.855,
+          "beta2": 0.9,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.016,
+          "beta1": 0.975,
+          "beta2": 0.975,
+          "grad_clip": 1,
+          "label": "SS AdamW"
+        },
+        {
+          "lr": 0.016,
+          "beta1": 0.92625,
+          "beta2": 0.975,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        },
+        {
+          "lr": 0.024,
+          "beta1": 0.975,
+          "beta2": 0.975,
+          "grad_clip": 1,
+          "label": "SS AdamW"
+        },
+        {
+          "lr": 0.024,
+          "beta1": 0.92625,
+          "beta2": 0.975,
+          "grad_clip": 1,
+          "label": "M-Lion"
+        }
+      ]
+    }
+  ]
+}

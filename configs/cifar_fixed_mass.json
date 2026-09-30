@@ -1,0 +1,127 @@
+{
+  "experiment": "cifar",
+  "description": "Fixed-mass learning-rate panels: four displayed masses and all 13 beta settings.",
+  "sources": [
+    "paper/massive_lion_iclr2027/submitted.tex (Learning-rate response)",
+    "gra/experiments/sweep/sweep_configs/2026_09_19__big_lion_signum_sweep.json (displayed masses only)"
+  ],
+  "fixed": {
+    "steps": 80000,
+    "batch_size": 256,
+    "eval_every": 5000,
+    "log_every": 1000,
+    "min_lr": 1e-05,
+    "compile": true,
+    "amp": true,
+    "kinematics": "minkowski",
+    "optim": "m_lion",
+    "adaptive_mass": false,
+    "seed": 0
+  },
+  "stages": [
+    {
+      "grid": {
+        "mass": [
+          0,
+          0.001,
+          0.1,
+          1
+        ],
+        "lr": [
+          0.0001,
+          0.0005,
+          0.001,
+          0.003,
+          0.008,
+          0.016
+        ],
+        "weight_decay": [
+          0.01,
+          0.1,
+          1,
+          10
+        ]
+      },
+      "cases": [
+        {
+          "beta1": 0.5,
+          "beta2": 0.9,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.7,
+          "beta2": 0.9,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.8,
+          "beta2": 0.9,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.5,
+          "beta2": 0.95,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.7,
+          "beta2": 0.95,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.9,
+          "beta2": 0.95,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.5,
+          "beta2": 0.99,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.7,
+          "beta2": 0.99,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.9,
+          "beta2": 0.99,
+          "label": "M-Lion",
+          "section": "Lion"
+        },
+        {
+          "beta1": 0.7,
+          "beta2": 0.7,
+          "label": "M-Signum",
+          "section": "Signum"
+        },
+        {
+          "beta1": 0.9,
+          "beta2": 0.9,
+          "label": "M-Signum",
+          "section": "Signum"
+        },
+        {
+          "beta1": 0.95,
+          "beta2": 0.95,
+          "label": "M-Signum",
+          "section": "Signum"
+        },
+        {
+          "beta1": 0.99,
+          "beta2": 0.99,
+          "label": "M-Signum",
+          "section": "Signum"
+        }
+      ]
+    }
+  ]
+}

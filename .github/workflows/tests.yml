@@ -1,0 +1,19 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  cpu:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install -e '.[lab,vision,language,analysis,test]'
+      - run: python -m pytest -q
+      - run: python -m experiments.cifar --smoke --output /tmp/smoke-cifar
+      - run: python -m experiments.language --smoke --output /tmp/smoke-language
+      - run: python -m experiments.quadratics.heterogeneous configs/quadratics/random_confirm_plan.json --smoke --output /tmp/smoke-quadratics

@@ -1,0 +1,66 @@
+{
+  "experiment": "cifar",
+  "description": "Adaptive rest mass: full 576-point grid (the paper snapshot had 574 completed runs).",
+  "sources": [
+    "gra/experiments/sweep/sweep_configs/2026_09_17__big_ss_adamw_mass_sweep.json"
+  ],
+  "fixed": {
+    "steps": 80000,
+    "batch_size": 256,
+    "eval_every": 5000,
+    "log_every": 1000,
+    "min_lr": 1e-05,
+    "compile": true,
+    "amp": true,
+    "kinematics": "minkowski",
+    "optim": "m_lion",
+    "adaptive_mass": true,
+    "seed": 0,
+    "section": "Signum",
+    "label": "M-Signum (adaptive)"
+  },
+  "stages": [
+    {
+      "grid": {
+        "mass": [
+          0,
+          1e-05,
+          0.001,
+          0.01,
+          0.1,
+          1,
+          10,
+          100
+        ],
+        "lr": [
+          0.0001,
+          0.0005,
+          0.001,
+          0.003,
+          0.008,
+          0.016
+        ],
+        "weight_decay": [
+          0.01,
+          0.1,
+          1,
+          10
+        ]
+      },
+      "cases": [
+        {
+          "beta1": 0.9,
+          "beta2": 0.9
+        },
+        {
+          "beta1": 0.95,
+          "beta2": 0.95
+        },
+        {
+          "beta1": 0.99,
+          "beta2": 0.99
+        }
+      ]
+    }
+  ]
+}
