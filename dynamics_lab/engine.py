@@ -420,8 +420,13 @@ class SimulationState:
 		return self.snapshot(include_landscape=True)
 
 	def step(self) -> dict[str, Any]:
+		self.advance()
+		return self.snapshot()
+
+	def advance(self) -> None:
+		"""Advance once without copying growing traces into a snapshot."""
 		if self.done:
-			return self.snapshot()
+			return
 
 		if self.mode == "serial":
 			self._step_serial()
@@ -430,8 +435,6 @@ class SimulationState:
 				if not learner.diverged and learner.local_step < self.max_steps:
 					self._step_learner(learner)
 			self.global_step += 1
-
-		return self.snapshot()
 
 	@property
 	def done(self) -> bool:

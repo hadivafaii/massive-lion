@@ -1,0 +1,22 @@
+name: Dynamics web checks
+on:
+  push:
+    paths: ['dynamics_lab/**', 'massive_lion/**', 'tests/test_dynamics_web.py', 'tests/test_dynamics_web_build.py', 'requirements-web.txt', '.github/workflows/dynamics-web.yml']
+  pull_request:
+    paths: ['dynamics_lab/**', 'massive_lion/**', 'tests/test_dynamics_web.py', 'tests/test_dynamics_web_build.py', 'requirements-web.txt', '.github/workflows/dynamics-web.yml']
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+      - run: python -m pip install -r requirements-web.txt pytest httpx
+      - run: python -m pytest tests/test_dynamics_web.py tests/test_dynamics_web_build.py -q
+      - run: python -m dynamics_lab.build_web --output dist/dynamics-lab
+      - uses: actions/upload-artifact@v4
+        with:
+          name: optimizer-dynamics-preview
+          path: dist/dynamics-lab

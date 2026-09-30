@@ -6,7 +6,7 @@ recursive-include experiments README.md
 recursive-include configs README.md
 recursive-include tests README.md
 recursive-include configs *.json
-recursive-include dynamics_lab *.html *.json
+recursive-include dynamics_lab *.html *.json *.js *.css
 recursive-include massive_lion/baselines *LICENSE*
 recursive-include experiments *LICENSE*
 recursive-include tests *.py

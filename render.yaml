@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: optimizer-dynamics-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile.dynamics-lab
+    healthCheckPath: /api/health
+    autoDeployTrigger: off
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: https://hadivafaii.github.io
+      - key: OMP_NUM_THREADS
+        value: "1"
+      - key: MKL_NUM_THREADS
+        value: "1"
