@@ -110,12 +110,12 @@ See [release verification](docs/verification.md) for numerical checks and limits
 
 | Directory | Contents |
 | --- | --- |
-| `massive_lion/` | Optimizer, aliases, and comparison baselines |
-| `dynamics_lab/` | Browser UI, simulation engine, landscapes, noise, and video export |
-| `experiments/` | Data preparation, models, trainers, selection, and plotting |
-| `configs/` | Reproduction grids and seed plans |
-| `docs/` | Equations, recipes, provenance, and verification limits |
-| `tests/` | Numerical and experiment-contract checks |
+| [massive_lion/](massive_lion/README.md) | Optimizer, aliases, and comparison baselines |
+| [dynamics_lab/](dynamics_lab/README.md) | Browser UI, simulation engine, landscapes, noise, and video export |
+| [experiments/](experiments/README.md) | Data preparation, models, trainers, selection, and plotting |
+| [configs/](configs/README.md) | Reproduction grids and seed plans |
+| [docs/](docs/README.md) | Equations, recipes, provenance, and verification limits |
+| [tests/](tests/README.md) | Numerical and experiment-contract checks |
 
 Generated datasets, runs, outputs, and checkpoints are ignored by Git. No
 research cache or manuscript source is required to use this repository.
