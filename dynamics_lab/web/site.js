@@ -290,7 +290,8 @@
   async function jsonFile(path) {
     const url = new URL(path, location.href);
     if (url.origin !== location.origin) throw new Error("Scene assets must be hosted on this site.");
-    const response = await fetch(url);
+    // Revalidate after deployments so cached settings cannot disable a new API.
+    const response = await fetch(url, {cache: "no-cache"});
     if (!response.ok) throw new Error(`Could not load ${path} (${response.status}). Please reload to retry.`);
     return response.json();
   }
