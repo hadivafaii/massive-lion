@@ -28,16 +28,16 @@ message instead of silently replaying old results.
 
 ## Enable free custom simulations
 
-Use the preconfigured [Deploy to Render link](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Fhadivafaii%2Fmassive-lion%2Ftree%2Fcodex%2Fhosted-dynamics-lab).
-It selects the source branch and its free-service Blueprint for you. Create
-your account, review the Free service, and deploy. Send the resulting service
-URL back to Codex to connect it to the website, or follow the manual steps below.
+The public playground uses [optimizer-dynamics-api.onrender.com](https://optimizer-dynamics-api.onrender.com/api/health),
+deployed from this repository's `main` branch on Render's Free plan.
+To deploy your own copy, use the preconfigured
+[Deploy to Render link](https://render.com/deploy?repo=https%3A%2F%2Fgithub.com%2Fhadivafaii%2Fmassive-lion%2Ftree%2Fmain)
+or follow the manual steps below.
 
 1. Visit [Render](https://dashboard.render.com/register), sign up, and connect
    the GitHub account that can access `hadivafaii/massive-lion`.
 2. Choose **New → Blueprint**, select that repository and the
-   `codex/hosted-dynamics-lab` branch, and use its `render.yaml` file. If the
-   source changes have been merged, use `main` instead.
+   `main` branch, and use its `render.yaml` file.
 3. Review the service: **Free** plan, CPU, one `optimizer-dynamics-api` service,
    no database or paid additions. Deploy it. The Dockerfile explicitly installs
    CPU PyTorch wheels rather than CUDA dependencies.
@@ -96,11 +96,13 @@ the live backend; the share dialog makes that distinction explicit.
 
 ## Deployment and verification
 
-The Pages workflow checks out an explicit source revision of `massive-lion`,
+The Pages workflow checks out the `main` branch of `massive-lion`,
 installs pinned CPU dependencies, builds the renderer plus example trajectories,
 adds the website repository's frozen bundles, and deploys the static artifact.
-Update that source revision deliberately to adopt new lab code. No optimizer
-implementation is maintained in the website repository.
+After updating the lab on `main`, deploy its latest commit in Render and run
+**Publish playground** in the website repository to refresh the frontend and
+built-in examples. Render automatic deploys are disabled so these updates can
+be coordinated. No optimizer implementation is maintained in the website repository.
 
 Every generated scene records the source repository, commit, source SHA-256,
 PyTorch version, dtype, and whether the source tree had uncommitted changes.

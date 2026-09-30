@@ -76,6 +76,13 @@ Start with [the equations and option guide](docs/optimizer.md), then read
 
 ## Dynamics Lab
 
+[Open Optimizer Dynamics Lab](https://hadivafaii.github.io/optimizer-dynamics/)
+to try the optimizers in your browser, with no installation. Use **Embed** to
+include a landscape in a blog or project page. The hosted version runs the
+same PyTorch implementations; see the [hosting guide](docs/dynamics_lab_hosting.md).
+
+To run the full Lab locally:
+
 ```bash
 python -m dynamics_lab.interactive --port 8011
 ```

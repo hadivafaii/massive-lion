@@ -1,6 +1,7 @@
 services:
   - type: web
     name: optimizer-dynamics-api
+    branch: main
     runtime: docker
     plan: free
     region: oregon
