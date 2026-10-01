@@ -348,6 +348,8 @@ def test_sample_landscape_rejects_nonfinite_grid(landscape):
     {"optimizers": None}, {"optimizers": {"name": "Lion"}},
     {"optimizers": [None]}, {"optimizers": ["Lion"]},
     {"landscape": []}, {"noise": "gaussian"},
+    {"landscape": {"x_min": 1, "x_max": 1}},
+    {"landscape": {"y_min": 1, "y_max": -1}},
     {"mode": "unknown"}, {"mode": None},
     {"max_steps": -1}, {"max_steps": 1.5}, {"max_steps": True}, {"max_steps": None},
 ])
@@ -373,6 +375,12 @@ def test_zero_steps_is_an_immediately_complete_run(mode):
     assert all(row["local_step"] == 0 and len(row["trace"]) == 1 for row in initial["learners"])
     state.advance()
     assert state.snapshot(include_landscape=True) == initial
+
+
+def test_landscape_grid_requires_two_points():
+    from dynamics_lab.landscapes import sample_landscape
+    with pytest.raises(ValueError, match="at least two"):
+        sample_landscape({}, n=1)
 
 
 @pytest.mark.parametrize("steps", ["2", 2.0])

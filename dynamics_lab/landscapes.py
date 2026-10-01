@@ -144,6 +144,8 @@ def sample_landscape(
 	"""Sample the landscape and contour segments for the browser."""
 	if not isinstance(config, SharpValleyConfig):
 		config = coerce_config(config)
+	if n < 2 or not (config.x_min < config.x_max and config.y_min < config.y_max):
+		raise ValueError("Landscape sampling needs at least two points and increasing x/y bounds")
 
 	with np.errstate(over="ignore", invalid="ignore"):
 		xs = np.linspace(config.x_min, config.x_max, n)
