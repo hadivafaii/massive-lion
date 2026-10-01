@@ -1,0 +1,13 @@
+*
+!Dockerfile.dynamics-lab
+!requirements-web.txt
+!pyproject.toml
+!README.md
+!LICENSE
+!THIRD_PARTY_NOTICES.md
+!massive_lion/
+!massive_lion/**
+!dynamics_lab/
+!dynamics_lab/**
+**/__pycache__
+**/*.pyc

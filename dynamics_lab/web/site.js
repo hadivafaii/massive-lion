@@ -8,6 +8,7 @@
     manifest: null, scene: null, data: null, api: "", loading: false,
     applying: false, generation: 0, controller: null, hidden: new Set(),
     custom: false, error: "", cache: new Map(), config: null, provenance: null,
+    requestConfig: null,
   };
   const main = document.querySelector("main");
   const header = document.querySelector("header");
@@ -16,6 +17,7 @@
   const plot = stage.querySelector(".panel");
   const originalAtStep = snapshotAtStep;
   const originalLegend = updateLegend;
+  const originalImportPayload = applyImportedPayload;
   document.body.classList.add("hosted", ...(embedded ? ["is-embed"] : []));
 
   function element(tag, className, text) {
@@ -108,7 +110,11 @@
   scrub.id = "timeline";
   scrub.type = "range"; scrub.min = "0"; scrub.max = "1"; scrub.value = "0"; scrub.step = "1";
   scrub.setAttribute("aria-label", "Simulation step");
-  scrub.addEventListener("input", () => { pause(); seek(Number(scrub.value)); });
+  scrub.addEventListener("input", () => {
+    const step = Number(scrub.value);
+    pause();
+    seek(step);
+  });
   const stepCounter = element("output", "step-counter", "0 / 0");
   stepCounter.id = "stepCounter";
   const speed = element("select", "playback-speed");
@@ -175,6 +181,14 @@
     if (host.applying) return;
     return runCustom();
   };
+  // File imports also enter through the shared local-lab handler. Invalidate a
+  // pending scene or simulation before it can overwrite the imported settings.
+  applyImportedPayload = async function hostedImport(payload) {
+    if (host.applying) return originalImportPayload(payload);
+    pause(); cancelRequest();
+    try { await originalImportPayload(payload); }
+    finally { decorateOptimizerRows(); updateStatus(); }
+  };
   stepForward = async function hostedStep() { pause(); seek(viewStep + 1); };
   stepBackward = async function hostedBack() { pause(); seek(viewStep - 1); };
   reportSimulationError = function hostedError(error) {
@@ -234,6 +248,16 @@
     seek(viewStep);
     updateOpenLink();
   }
+  function restoreVisibility(ids) {
+    if (!ids || !host.data) return;
+    const allowed = new Set(ids);
+    if (!host.data.learners.some(item => allowed.has(learnerKey(item)))) return;
+    host.hidden.clear();
+    host.data.learners.forEach(item => {
+      if (!allowed.has(learnerKey(item))) host.hidden.add(learnerKey(item));
+    });
+    populateToggles(); refreshVisible();
+  }
   function populateToggles() {
     const container = $("optimizerToggles"); container.replaceChildren();
     const used = new Set();
@@ -271,6 +295,12 @@
     if (host.applying || !host.data) return;
     if (event?.target && (!customDetails.contains(event.target) || event.target.closest("#simulateBtn"))) return;
     if (event?.type === "click" && !event.target.closest(".remove-opt,.duplicate-opt,#addOptimizerBtn")) return;
+    // Playback/display controls can fire while needsReset is true for an
+    // in-flight run. They must not cancel a run whose input is still unchanged.
+    if (host.loading && host.requestConfig) {
+      try { if (JSON.stringify(readConfig()) === host.requestConfig) return; }
+      catch { /* Invalid newly edited input still invalidates the pending run. */ }
+    }
     if (needsReset) {
       if (host.loading) cancelRequest();
       pause();
@@ -287,11 +317,11 @@
   $("landscape_view").addEventListener("change", updateOpenLink);
   $("scenePicker").addEventListener("change", () => loadScene($("scenePicker").value).catch(reportSimulationError));
 
-  async function jsonFile(path) {
+  async function jsonFile(path, signal) {
     const url = new URL(path, location.href);
     if (url.origin !== location.origin) throw new Error("Scene assets must be hosted on this site.");
     // Revalidate after deployments so cached settings cannot disable a new API.
-    const response = await fetch(url, {cache: "no-cache"});
+    const response = await fetch(url, {cache: "no-cache", signal});
     if (!response.ok) throw new Error(`Could not load ${path} (${response.status}). Please reload to retry.`);
     return response.json();
   }
@@ -299,6 +329,7 @@
     host.generation += 1;
     host.controller?.abort(); host.controller = null;
     host.loading = false;
+    host.requestConfig = null;
   }
   async function applyConfig(payload) {
     host.applying = true;
@@ -333,9 +364,10 @@
     const scene = host.manifest.scenes.find(item => item.id === id) || host.manifest.scenes[0];
     if (!scene) throw new Error("No published examples were found.");
     host.loading = true;
+    const controller = new AbortController(); host.controller = controller;
     showNotice("Loading example…"); updateStatus();
     try {
-      const data = host.cache.get(scene.id) || await jsonFile(scene.file);
+      const data = host.cache.get(scene.id) || await jsonFile(scene.file, controller.signal);
       if (generation !== host.generation) return;
       host.cache.set(scene.id, data);
       host.scene = scene; host.custom = false;
@@ -347,14 +379,7 @@
       $("sceneTitle").textContent = data.title || scene.title;
       $("sceneDescription").textContent = data.description || scene.description || "Follow the optimizer paths as they descend the landscape.";
       installSnapshot(data.snapshot, data.config, data.provenance);
-      if (initial && params.get("show")) {
-        const allowed = new Set(params.get("show").split(","));
-        const existing = data.snapshot.learners.filter(item => allowed.has(learnerKey(item)));
-        if (existing.length) {
-          data.snapshot.learners.forEach(item => { if (!allowed.has(learnerKey(item))) host.hidden.add(learnerKey(item)); });
-          populateToggles(); refreshVisible();
-        }
-      }
+      if (initial && !location.hash.startsWith("#config=")) restoreVisibility(params.get("show")?.split(","));
       if (initial && ["2d", "3d"].includes(params.get("view"))) {
         $("landscape_view").value = params.get("view"); landscapeView.mode = params.get("view");
       }
@@ -364,11 +389,14 @@
         history.replaceState(null, "", url);
       }
       if (!reducedMotion && params.get("autoplay") !== "0") run();
+    } catch (error) {
+      if (generation !== host.generation) return;
+      throw error;
     } finally {
-      if (generation === host.generation) { host.loading = false; updateStatus(); }
+      if (generation === host.generation) { host.loading = false; host.controller = null; updateStatus(); }
     }
   }
-  async function runCustom() {
+  async function runCustom({visible = null} = {}) {
     pause();
     if (!host.api) { showNotice("Custom runs are unavailable in this preview. The published examples always work; select one above to keep exploring.", "pending"); return; }
     if (host.loading) return;
@@ -377,6 +405,7 @@
     cancelRequest();
     const generation = host.generation;
     host.loading = true; needsReset = true;
+    host.requestConfig = JSON.stringify(config);
     const controller = new AbortController(); host.controller = controller;
     showNotice("Computing your paths with the Python optimizers…"); updateStatus();
     const warm = setTimeout(() => {
@@ -390,6 +419,7 @@
       if (generation !== host.generation) return;
       host.loading = false; host.custom = true; host.hidden.clear();
       installSnapshot(body.snapshot || body, exportPayload, body.provenance);
+      restoreVisibility(visible);
       $("sceneTitle").textContent = "Your experiment";
       $("sceneDescription").textContent = "Your settings, computed with the repository’s Python implementations.";
       updateOpenLink();
@@ -399,7 +429,7 @@
       reportSimulationError(error.name === "AbortError" ? new Error("The simulation server took too long. Try again, or choose a published example to play immediately.") : error);
     } finally {
       clearTimeout(warm); clearTimeout(timeout);
-      if (generation === host.generation) { host.loading = false; host.controller = null; updateStatus(); }
+      if (generation === host.generation) { host.loading = false; host.controller = null; host.requestConfig = null; updateStatus(); }
     }
   }
   function shareURL(embed) {
@@ -448,6 +478,7 @@
     showNotice("Scene downloaded with its settings and trajectories. Publish this bundle with the site to create an instant blog embed.");
   }
   async function init() {
+    new ResizeObserver(() => { if (snapshot) drawAll(); }).observe(plot);
     const [defaultData, manifest, siteConfig] = await Promise.all([jsonFile("defaults.json"), jsonFile("scenes.json"), jsonFile("site-config.json").catch(() => ({}))]);
     defaults = defaultData;
     host.manifest = manifest;
@@ -463,17 +494,19 @@
       const option = element("option", "", scene.title); option.value = scene.id;
       $("scenePicker").append(option);
     }
+    const initialGeneration = host.generation + 1;
     await loadScene(params.get("scene") || manifest.default_scene || manifest.scenes[0]?.id, true);
+    // A visitor may choose another scene before the initial download completes.
+    if (host.generation !== initialGeneration) return;
     if (location.hash.startsWith("#config=")) {
       pause();
       if (location.hash.length > 48008) throw new Error("The shared configuration is too large. Import the settings as a JSON file instead.");
       const config = JSON.parse(decodeURIComponent(location.hash.slice(8)));
       await applyConfig(config);
       host.custom = true; needsReset = true; updateStatus();
-      if (host.api) await runCustom();
+      if (host.api) await runCustom({visible: params.get("show")?.split(",")});
       else showNotice("This link includes custom settings, but the simulation server is not configured. Choose an example to see saved paths.", "pending");
     }
-    new ResizeObserver(() => { if (snapshot) drawAll(); }).observe(plot);
   }
   init().catch(reportSimulationError);
 })();

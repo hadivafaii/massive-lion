@@ -14,6 +14,7 @@ from dynamics_lab.engine import SimulationState, defaults_payload
 STATE = SimulationState()
 STATE_LOCK = threading.Lock()
 HTML_PATH = Path(__file__).with_name("interactive.html")
+MAX_REQUEST_BYTES = 1024 * 1024
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -41,12 +42,15 @@ class Handler(BaseHTTPRequestHandler):
 	def do_POST(self):
 		path = urlparse(self.path).path
 		if path == "/api/reset":
-			config = self._read_json()
 			try:
+				config = self._read_json()
 				with STATE_LOCK:
 					payload = STATE.reset(config)
-			except (ValueError, TypeError, KeyError) as error:
+			except (ValueError, TypeError, KeyError, OverflowError, RecursionError) as error:
 				self._send_bytes(json.dumps({"error": str(error)}).encode(), "application/json", status=400)
+				return
+			except TimeoutError:
+				self._send_json({"error": "Request body timed out"}, status=408)
 				return
 			self._send_json(payload)
 			return
@@ -62,13 +66,21 @@ class Handler(BaseHTTPRequestHandler):
 
 	def _read_json(self):
 		length = int(self.headers.get("Content-Length", "0"))
+		if not 0 <= length <= MAX_REQUEST_BYTES:
+			raise ValueError("Request size must be between 0 and 1 MiB")
 		if length == 0:
 			return {}
-		return json.loads(self.rfile.read(length).decode("utf-8"))
+		self.connection.settimeout(15)
+		def invalid_constant(value):
+			raise ValueError(f"Non-finite JSON number: {value}")
+		payload = json.loads(self.rfile.read(length).decode("utf-8"), parse_constant=invalid_constant)
+		if not isinstance(payload, dict):
+			raise ValueError("Configuration must be a JSON object")
+		return payload
 
-	def _send_json(self, data):
-		body = json.dumps(data).encode("utf-8")
-		self._send_bytes(body, "application/json")
+	def _send_json(self, data, status=200):
+		body = json.dumps(data, allow_nan=False).encode("utf-8")
+		self._send_bytes(body, "application/json", status=status)
 
 	def _send_bytes(self, body, content_type, status=200):
 		self.send_response(status)

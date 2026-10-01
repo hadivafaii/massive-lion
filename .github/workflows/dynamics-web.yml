@@ -1,12 +1,15 @@
 name: Dynamics web checks
 on:
   push:
-    paths: ['dynamics_lab/**', 'massive_lion/**', 'tests/test_dynamics_web.py', 'tests/test_dynamics_web_build.py', 'requirements-web.txt', '.github/workflows/dynamics-web.yml']
+    paths: ['dynamics_lab/**', 'massive_lion/**', 'tests/test_dynamics*', 'tests/*.mjs', 'package*.json', 'requirements-web.txt', 'Dockerfile.dynamics-lab', '.dockerignore', 'render.yaml', 'pyproject.toml', '.github/workflows/dynamics-web.yml']
   pull_request:
-    paths: ['dynamics_lab/**', 'massive_lion/**', 'tests/test_dynamics_web.py', 'tests/test_dynamics_web_build.py', 'requirements-web.txt', '.github/workflows/dynamics-web.yml']
+    paths: ['dynamics_lab/**', 'massive_lion/**', 'tests/test_dynamics*', 'tests/*.mjs', 'package*.json', 'requirements-web.txt', 'Dockerfile.dynamics-lab', '.dockerignore', 'render.yaml', 'pyproject.toml', '.github/workflows/dynamics-web.yml']
+permissions:
+  contents: read
 jobs:
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -14,8 +17,24 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
       - run: python -m pip install -r requirements-web.txt pytest httpx
-      - run: python -m pytest tests/test_dynamics_web.py tests/test_dynamics_web_build.py -q
+      - run: python -m pytest tests/test_dynamics_lab.py tests/test_dynamics_instances.py tests/test_dynamics_http.py tests/test_dynamics_web.py tests/test_dynamics_web_build.py tests/test_dynamics_deployment.py -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts
+      - run: npm test
       - run: python -m dynamics_lab.build_web --output dist/dynamics-lab
+      - name: Build and smoke-test the production container
+        run: |
+          docker build -t dynamics-lab:test -f Dockerfile.dynamics-lab .
+          docker run -d --memory=512m --name dynamics-lab -p 127.0.0.1:8012:10000 -e RENDER_GIT_COMMIT="$GITHUB_SHA" -e ALLOWED_ORIGINS=http://localhost dynamics-lab:test
+          python -m dynamics_lab.check_deployment --api-url http://127.0.0.1:8012 --expected-revision "$GITHUB_SHA" --origin http://localhost
+      - name: Container logs
+        if: always()
+        run: docker logs dynamics-lab 2>&1 || true
+      - name: Stop test container
+        if: always()
+        run: docker rm -f dynamics-lab 2>/dev/null || true
       - uses: actions/upload-artifact@v4
         with:
           name: optimizer-dynamics-preview

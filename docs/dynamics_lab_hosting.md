@@ -55,8 +55,10 @@ about a minute to wake. The page warms the service in the background, displays
 progress for a custom run, and keeps saved examples usable. Free quotas apply;
 no keepalive service is needed. See [Render's current free-service limits](https://render.com/docs/free).
 
-The API permits two admitted requests, computes one at a time, and bounds steps,
-optimizer count, ensemble size, noise draws, and request size. Each run uses a
+The API permits two admitted requests (including uploads), computes one at a
+time, and bounds steps, optimizer count, ensemble size, noise draws, and request
+size. Uploads time out after 15 seconds. Disconnecting cannot bypass the queue
+limit while a simulation is still running. Each run uses a
 fresh simulation. The lock covers PyTorch's process-global RNG, so concurrent
 visitors cannot change another run's seed or state. CPU thread counts are fixed
 to one in the container. Measure real Linux memory/latency after deployment;
@@ -75,7 +77,7 @@ source/version metadata. Give it a unique lowercase id (for example
 `post-2026-curved-valley`) and place the JSON in `published/` in the
 `optimizer-dynamics` repository. Push it and let Pages rebuild. The scene
 appears in the picker and can be embedded with `?embed=1&scene=post-2026-curved-valley`.
-The builder copies frozen bundles verbatim; it does not rerun them against
+The builder preserves frozen trajectory data; it does not rerun it against
 newer optimizer code. Preserve published filenames and ids; use a new id when
 revising a figure.
 
@@ -96,13 +98,23 @@ the live backend; the share dialog makes that distinction explicit.
 
 ## Deployment and verification
 
-The Pages workflow checks out the `main` branch of `massive-lion`,
+The Pages workflow checks out `main` from `massive-lion` by default (or the
+explicit `source_ref` supplied when running it), records the resolved commit,
 installs pinned CPU dependencies, builds the renderer plus example trajectories,
 adds the website repository's frozen bundles, and deploys the static artifact.
-After updating the lab on `main`, deploy its latest commit in Render and run
-**Publish playground** in the website repository to refresh the frontend and
-built-in examples. Render automatic deploys are disabled so these updates can
-be coordinated. No optimizer implementation is maintained in the website repository.
+After updating the lab on `main`, wait for **Dynamics web checks**, deploy that
+commit in Render, and run **Publish playground** with that same commit as
+`source_ref`. The publishing workflow runs Python and browser regression tests,
+then verifies the live backend's exact commit, numerical source digest, CORS,
+and a real two-optimizer simulation. A mismatch or unavailable backend stops
+publication and leaves the previous Pages deployment intact. This also applies
+to website-repository pushes: deploy the current source `main` to Render first.
+Render automatic deploys are disabled so these updates can be coordinated.
+No optimizer implementation is maintained in the website repository.
+
+Source CI also builds the actual Docker image and runs its health/simulation
+checks with a 512 MiB memory limit. The container forwards termination signals
+to Uvicorn so deployment shutdowns can finish admitted work.
 
 Every generated scene records the source repository, commit, source SHA-256,
 PyTorch version, dtype, and whether the source tree had uncommitted changes.
@@ -112,7 +124,13 @@ a unique id for a published scientific argument.
 ```bash
 python -m pip install httpx
 python -m pytest tests/test_dynamics_web.py tests/test_dynamics_web_build.py -q
+npm ci --ignore-scripts
+npm test
 ```
+
+The browser regression suite uses jsdom and the actual local/hosted scripts,
+with controlled API responses to exercise races, imports, scrubbing, and sharing.
+It complements visual browser checks; it does not test canvas pixels.
 
 Before publishing, check both the full and embedded pages, a custom run,
 play/pause/scrub, mobile layout, and saved examples with the API disabled.

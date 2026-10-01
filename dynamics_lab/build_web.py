@@ -8,19 +8,16 @@ interactive figures without recomputing their trajectories on future builds.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import math
 from pathlib import Path
 import re
 import shutil
-import subprocess
 from typing import Any
 from urllib.parse import urlparse
 
-import torch
-
 from dynamics_lab.engine import defaults_payload
-from dynamics_lab.web_simulation import simulate
+from dynamics_lab.web_simulation import runtime_provenance, simulate
 
 
 LAB = Path(__file__).resolve().parent
@@ -38,24 +35,7 @@ def write_json(path: Path, data: Any) -> None:
 
 
 def provenance() -> dict[str, Any]:
-    root = LAB.parent
-    digest = hashlib.sha256()
-    sources = sorted((root / "massive_lion").rglob("*.py")) + sorted(LAB.glob("*.py"))
-    for path in sources:
-        digest.update(str(path.relative_to(root)).encode())
-        digest.update(path.read_bytes())
-    def git(*args: str) -> str:
-        result = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True)
-        return result.stdout.strip() if result.returncode == 0 else ""
-    return {
-        "repository": "https://github.com/hadivafaii/massive-lion",
-        "commit": git("rev-parse", "HEAD"),
-        "source_sha256": digest.hexdigest(),
-        "uncommitted_changes": bool(git("status", "--porcelain", "--", "massive_lion", "dynamics_lab")),
-        "torch_version": torch.__version__,
-        "device": "cpu",
-        "dtype": "float64",
-    }
+    return runtime_provenance()
 
 
 def scene_bundle(scene_id: str, title: str, description: str, payload: dict, source: dict) -> dict:
@@ -71,17 +51,56 @@ def scene_bundle(scene_id: str, title: str, description: str, payload: dict, sou
 def validate_bundle(bundle: dict) -> None:
     if not isinstance(bundle, dict) or bundle.get("schema_version") != 1:
         raise ValueError("Published scene must be a version 1 scene bundle from Download scene.")
-    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", str(bundle.get("id", ""))):
+    if not isinstance(bundle.get("id"), str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,79}", bundle["id"]):
         raise ValueError("Scene id must use lowercase letters, digits, and hyphens.")
     if not isinstance(bundle.get("title"), str) or not bundle["title"].strip():
         raise ValueError("Scene needs a title.")
     snapshot = bundle.get("snapshot", {})
     if not isinstance(snapshot, dict) or not snapshot.get("learners") or "landscape" not in snapshot:
         raise ValueError("Scene needs complete trajectories and its landscape.")
-    if not snapshot.get("done"):
+    if snapshot.get("done") is not True:
         raise ValueError("Finish the simulation before publishing the scene.")
     if not isinstance(bundle.get("config"), dict):
         raise ValueError("Scene needs its source configuration.")
+    # Frozen figures may use older optimizer settings. Check the rendering
+    # contract, without recomputing them or imposing today's simulation limits.
+    def finite(value):
+        return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+    step = snapshot.get("global_step")
+    if type(step) is not int or step < 0:
+        raise ValueError("Scene needs a nonnegative integer global_step.")
+    landscape = snapshot["landscape"]
+    if not isinstance(landscape, dict):
+        raise ValueError("Scene needs a sampled landscape.")
+    for axis in ("x", "y"):
+        values = landscape.get(axis)
+        if (not isinstance(values, list) or len(values) < 2
+                or not all(finite(v) for v in values)
+                or any(a >= b for a, b in zip(values, values[1:]))):
+            raise ValueError(f"Scene landscape.{axis} must be an increasing finite axis.")
+    z = landscape.get("z")
+    if (not isinstance(z, list) or len(z) != len(landscape["y"])
+            or any(not isinstance(row, list) or len(row) != len(landscape["x"])
+                   or not all(finite(v) for v in row) for row in z)):
+        raise ValueError("Scene landscape.z must match its finite x/y grid.")
+    if (not finite(landscape.get("z_min")) or not finite(landscape.get("z_clip"))
+            or landscape["z_clip"] < landscape["z_min"]):
+        raise ValueError("Scene needs finite landscape color bounds.")
+    if not isinstance(snapshot["learners"], list):
+        raise ValueError("Scene learners must be a list.")
+    for learner in snapshot["learners"]:
+        if not isinstance(learner, dict) or not isinstance(learner.get("trace"), list) or not learner["trace"]:
+            raise ValueError("Every scene learner needs a trajectory.")
+        previous = -1
+        for point in learner["trace"]:
+            if (not isinstance(point, dict) or type(point.get("step")) is not int
+                    or not previous < point["step"] <= step):
+                raise ValueError("Scene trajectory steps must be ordered within global_step.")
+            previous = point["step"]
+            theta = point.get("theta")
+            if not isinstance(theta, list) or len(theta) != 2 or not all(finite(v) for v in theta) or not finite(point.get("loss")):
+                raise ValueError("Scene trajectories need finite 2D positions and losses.")
     json.dumps(bundle, allow_nan=False)
 
 
@@ -102,8 +121,11 @@ def hosted_html() -> str:
 def build(output: Path, api_base_url: str = "", published: Path | None = None) -> dict:
     if api_base_url and api_base_url != ".":
         url = urlparse(api_base_url)
-        if url.scheme not in {"http", "https"} or not url.netloc:
-            raise ValueError("API URL must be an HTTP(S) URL, '.' for same-origin preview, or empty.")
+        if (url.scheme not in {"http", "https"} or not url.hostname
+                or url.username or url.password or url.query or url.fragment
+                or url.path not in {"", "/"}):
+            raise ValueError("API URL must be an HTTP(S) origin without credentials, path, query or fragment; use '.' for same-origin preview.")
+        url.port  # Validate a provided port before producing unusable settings.
     output.mkdir(parents=True, exist_ok=True)
     (output / "index.html").write_text(hosted_html())
     (output / ".nojekyll").touch()
@@ -127,7 +149,7 @@ def build(output: Path, api_base_url: str = "", published: Path | None = None) -
         if any(item["id"] == bundle["id"] for item in bundles):
             raise ValueError(f"Duplicate scene id: {bundle['id']}; choose a unique published scene id.")
         bundles.append(bundle)
-    manifest = {"schema_version": 1, "default_scene": "curved-valley", "scenes": []}
+    manifest = {"schema_version": 1, "default_scene": bundles[0]["id"] if bundles else None, "scenes": []}
     for bundle in bundles:
         filename = f"scenes/{bundle['id']}.json"
         write_json(output / filename, bundle)

@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir --no-deps .
 RUN useradd --create-home lab
 USER lab
 EXPOSE 10000
-CMD ["sh", "-c", "uvicorn dynamics_lab.web_api:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --limit-concurrency 32 --timeout-keep-alive 5"]
+CMD ["sh", "-c", "exec uvicorn dynamics_lab.web_api:app --host 0.0.0.0 --port ${PORT:-10000} --workers 1 --limit-concurrency 32 --timeout-keep-alive 5"]

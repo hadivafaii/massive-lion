@@ -11,14 +11,16 @@ import hashlib
 import math
 import os
 from pathlib import Path
-import re
 import subprocess
 import threading
 from typing import Any
 
 import torch
 
-from dynamics_lab.engine import OptimizerSpec, SimulationState, canonical_optimizer_name
+from dynamics_lab.engine import (
+    OptimizerSpec, SimulationState, _assign_instance_identities,
+    canonical_optimizer_name,
+)
 from dynamics_lab.landscapes import SharpValleyConfig
 from dynamics_lab.noise import NoiseConfig
 
@@ -32,6 +34,7 @@ LIMITS = {
     "noise_draws": 100000,
     "landscape_grid": 85,
     "request_bytes": 65536,
+    "request_timeout_seconds": 15,
     "concurrent_requests": 2,
 }
 SIMULATION_LOCK = threading.Lock()
@@ -177,37 +180,32 @@ def validate_config(payload: Any) -> dict[str, Any]:
     if not isinstance(rows, list) or len(rows) > LIMITS["optimizer_rows"]:
         raise ValueError(f"optimizers must be a list with at most {LIMITS['optimizer_rows']} rows")
     specs = []
-    identities = []
     for index, row in enumerate(rows or [{"name": name} for name in _DEFAULT_NAMES]):
         _object(row, f"optimizers[{index}]")
         for key in _BOOLEAN_FIELDS & row.keys():
             if not isinstance(row[key], bool):
                 raise ValueError(f"optimizers[{index}].{key} must be a boolean")
         for key in _NUMERIC_FIELDS & row.keys():
-            maximum = 0.999999999 if key in {"beta1", "beta2", "momentum", "beta_gravity"} else 10000
+            maximum = math.nextafter(1.0, 0.0) if key in {"beta1", "beta2", "beta_gravity"} else 10000
             _number(row[key], f"optimizers[{index}].{key}", 0, maximum)
         for key in ("noise_slot", "noise_stride"):
             if row.get(key) is not None:
                 _integer(row[key], f"optimizers[{index}].{key}", 0 if key == "noise_slot" else 1, LIMITS["ensemble_count"])
-        identity = row.get("instance_id")
-        if identity is not None:
-            if not isinstance(identity, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}", identity):
-                raise ValueError(f"optimizers[{index}].instance_id must be an identifier")
-            identities.append(identity)
-        for key in ("label", "display_label"):
-            if row.get(key) is not None and (not isinstance(row[key], str) or any(ord(char) < 32 for char in row[key])):
-                raise ValueError(f"optimizers[{index}].{key} must be plain single-line text")
-        if row.get("color") is not None and (not isinstance(row["color"], str) or not re.fullmatch(r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?", row["color"])):
-            raise ValueError(f"optimizers[{index}].color must use #RGB or #RRGGBB")
-        specs.append(OptimizerSpec.from_dict(row))
-    if len(identities) != len(set(identities)):
-        raise ValueError("Duplicate optimizer instance_id")
+        # The engine validates presentation fields as well as optimizer aliases.
+        spec = OptimizerSpec.from_dict(row)
+        for key in ("beta1", "beta2", "beta_gravity"):
+            _number(getattr(spec, key), f"optimizers[{index}].{key}", 0, math.nextafter(1.0, 0.0))
+        specs.append(spec)
+    # Use the engine's allocation rules, including collisions with explicit IDs.
+    # Exported configs can select a generated ID without spelling it out on rows.
+    _assign_instance_identities(specs)
+    identities = [spec.instance_id for spec in specs]
     ensemble_name = config.get("ensemble_optimizer", "Lion")
     if not isinstance(ensemble_name, str):
         raise ValueError("ensemble_optimizer must be a string")
     OptimizerSpec.from_dict({"name": canonical_optimizer_name(ensemble_name)})
     ensemble_id = config.get("ensemble_instance_id")
-    if ensemble_id is not None and (not isinstance(ensemble_id, str) or ensemble_id not in identities):
+    if ensemble_id not in (None, "") and (not isinstance(ensemble_id, str) or ensemble_id not in identities):
         raise ValueError("ensemble_instance_id must identify an optimizer row")
     learners = ensemble_count if mode == "ensemble" else len(specs)
     if steps * learners > LIMITS["optimizer_steps"]:

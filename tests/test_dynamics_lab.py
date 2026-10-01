@@ -5,7 +5,7 @@ import torch
 
 from dynamics_lab.engine import SimulationState
 from dynamics_lab.landscapes import (
-	coerce_config, landscape_hessian, landscape_loss,
+	coerce_config, landscape_hessian, landscape_loss, sample_landscape,
 )
 from dynamics_lab.noise import NoiseConfig, sample_noise
 
@@ -290,6 +290,101 @@ def test_simulation_modes_complete_reproducibly(mode):
               "ensemble_optimizer": "MassiveLion", "noise": {"seed": 17, "std": .01},
               "optimizers": [{"name": "MassiveLion"}, {"name": "Lion"}]}
     assert run_trace(config) == run_trace(config)
+
+
+@pytest.mark.parametrize("mode", ["parallel", "serial", "ensemble"])
+def test_failed_reset_preserves_active_run_and_rng(mode):
+    config = {"mode": mode, "max_steps": 5, "ensemble_count": 3,
+              "ensemble_optimizer": "MassiveLion", "noise": {"seed": 17, "std": .01},
+              "optimizers": [{"name": "MassiveLion"}, {"name": "AdamW"}]}
+    active, expected = SimulationState(), SimulationState()
+    for state in (active, expected):
+        state.reset(config)
+        state.advance()
+    previous = active.snapshot(include_landscape=True)
+    rng_before = torch.random.get_rng_state().clone()
+    invalid = copy.deepcopy(config)
+    invalid.update(mode="parallel", max_steps=2, noise={"seed": 97, "std": .02})
+    invalid["optimizers"][1]["lr"] = -1
+
+    with pytest.raises(ValueError, match="learning rate"):
+        active.reset(invalid)
+
+    assert active.snapshot(include_landscape=True) == previous
+    assert torch.equal(torch.random.get_rng_state(), rng_before)
+    while not expected.done:
+        assert active.step() == expected.step()
+
+
+@pytest.mark.parametrize("theta", [[float("nan"), 0.], [float("inf"), 0.], [1e100, 0.]])
+def test_nonfinite_initial_trace_is_rejected_without_losing_active_run(theta):
+    state = SimulationState()
+    config = {"max_steps": 2, "landscape": {"kind": "curved_valley"},
+              "optimizers": [{"name": "AdamW"}]}
+    state.reset(config)
+    previous = state.snapshot(include_landscape=True)
+
+    with pytest.raises(ValueError, match="finite"):
+        state.reset({**config, "theta0": theta})
+
+    assert state.snapshot(include_landscape=True) == previous
+    json.dumps(state.step(), allow_nan=False)
+
+
+@pytest.mark.parametrize("landscape", [
+    {"kind": "curved_valley", "x_max": 1e100},
+    {"target_x": float("nan")},
+    {"y_max": float("inf")},
+])
+def test_sample_landscape_rejects_nonfinite_grid(landscape):
+    with pytest.raises(ValueError, match="finite"):
+        sample_landscape(landscape, n=7)
+
+
+@pytest.mark.parametrize("invalid", [
+    None, [], "not a config",
+    {"theta0": [0]}, {"theta0": [0, 0, 0]}, {"theta0": None},
+    {"theta0": "12"}, {"theta0": {"x": 0, "y": 0}},
+    {"optimizers": None}, {"optimizers": {"name": "Lion"}},
+    {"optimizers": [None]}, {"optimizers": ["Lion"]},
+    {"landscape": []}, {"noise": "gaussian"},
+    {"mode": "unknown"}, {"mode": None},
+    {"max_steps": -1}, {"max_steps": 1.5}, {"max_steps": True}, {"max_steps": None},
+])
+def test_malformed_reset_raises_value_error_and_preserves_active_run(invalid):
+    state = SimulationState()
+    state.reset({"max_steps": 2, "optimizers": [{"name": "Lion"}]})
+    state.advance()
+    previous = state.snapshot(include_landscape=True)
+    with pytest.raises(ValueError):
+        state.reset(invalid)
+    assert state.snapshot(include_landscape=True) == previous
+    assert state.step()["done"]
+
+
+@pytest.mark.parametrize("mode", ["parallel", "serial", "ensemble"])
+def test_zero_steps_is_an_immediately_complete_run(mode):
+    state = SimulationState()
+    initial = state.reset({"mode": mode, "max_steps": 0, "ensemble_count": 3,
+                           "noise": {"std": .01, "seed": 17},
+                           "optimizers": [{"name": "Lion"}, {"name": "AdamW"}]})
+    assert initial["done"] and initial["global_step"] == initial["total_steps"] == 0
+    assert len(initial["learners"]) == (3 if mode == "ensemble" else 2)
+    assert all(row["local_step"] == 0 and len(row["trace"]) == 1 for row in initial["learners"])
+    state.advance()
+    assert state.snapshot(include_landscape=True) == initial
+
+
+@pytest.mark.parametrize("steps", ["2", 2.0])
+def test_reset_preserves_integral_coercion_and_optional_defaults(steps):
+    state = SimulationState()
+    snapshot = state.reset({"max_steps": steps, "theta0": ("-1.8", 2.3),
+                            "landscape": None, "noise": None,
+                            "optimizers": ({"name": "Lion"},)})
+    assert snapshot["max_steps"] == 2
+    assert snapshot["theta0"] == [-1.8, 2.3]
+    state.advance()
+    assert state.step()["done"]
 
 
 def test_cautious_masks_match_c_optim_conventions():

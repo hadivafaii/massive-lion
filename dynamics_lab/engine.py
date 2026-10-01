@@ -1,5 +1,7 @@
 """Shared optimizer simulation engine for dynamics visualizations and sweeps."""
 
+from copy import copy
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, replace
 import math
 import re
@@ -358,10 +360,17 @@ class SimulationState:
 		self.landscape_payload = sample_landscape(self.landscape)
 
 	def reset(self, config: dict[str, Any]) -> dict[str, Any]:
+		config = _normalize_reset_structure(config)
 		noise = NoiseConfig.from_dict(config.get("noise"))
+		# Reset replaces each mutable run field before using it. Build on a
+		# shallow candidate so an invalid optimizer or landscape cannot leave
+		# the active run half-reset; no optimizer state or traces are copied.
+		candidate = copy(self)
 		with torch.random.fork_rng(devices=[]):
 			torch.manual_seed(noise.seed)
-			return self._reset_with_isolated_rng(config, noise)
+			payload = candidate._reset_with_isolated_rng(config, noise)
+		self.__dict__.update(candidate.__dict__)
+		return payload
 
 	def _reset_with_isolated_rng(
 			self,
@@ -414,7 +423,12 @@ class SimulationState:
 		self.landscape_payload = sample_landscape(self.landscape)
 		self.learners = []
 		if self.mode == "serial":
-			self._start_serial_learner(self.theta0)
+			if self.max_steps == 0:
+				for index, spec in enumerate(self.optimizer_specs):
+					self.learners.append(self._new_learner(index, spec, self.theta0, 0))
+				self.serial_index = len(self.optimizer_specs)
+			else:
+				self._start_serial_learner(self.theta0)
 		elif self.mode == "ensemble":
 			for index in range(self.ensemble_count):
 				learner = self._new_learner(
@@ -564,6 +578,8 @@ class SimulationState:
 		)
 		coordinates = _flat_coordinates(param)
 		loss = float(landscape_loss(coordinates, self.landscape).detach())
+		if not math.isfinite(loss):
+			raise ValueError("Initial loss must be finite; choose smaller starting coordinates or landscape values")
 		learner.trace.append(StepSample(
 			step=start_step,
 			theta=[float(coordinates[0].detach()), float(coordinates[1].detach())],
@@ -784,6 +800,44 @@ def defaults_payload() -> dict[str, Any]:
 		"theta0": [-1.8, 2.3],
 		"max_steps": 300,
 	}
+
+
+def _normalize_reset_structure(config: Any) -> dict[str, Any]:
+	"""Reject malformed local/imported input before touching an active run."""
+	if not isinstance(config, Mapping):
+		raise ValueError("Configuration must be an object")
+	config = dict(config)
+	mode = config.get("mode", "parallel")
+	if not isinstance(mode, str) or mode not in ("parallel", "serial", "ensemble"):
+		raise ValueError("mode must be parallel, serial, or ensemble")
+	for key in ("landscape", "noise"):
+		if config.get(key) is not None and not isinstance(config[key], Mapping):
+			raise ValueError(f"{key} must be an object or null")
+	rows = config.get("optimizers", [])
+	if not isinstance(rows, (list, tuple)):
+		raise ValueError("optimizers must be a list of objects")
+	for index, row in enumerate(rows):
+		if not isinstance(row, Mapping):
+			raise ValueError(f"optimizers[{index}] must be an object")
+	steps = config.get("max_steps", 300)
+	try:
+		integer_steps = int(steps)
+		if isinstance(steps, bool) or integer_steps < 0 or (not isinstance(steps, str) and steps != integer_steps):
+			raise ValueError
+	except (TypeError, ValueError, OverflowError):
+		raise ValueError("max_steps must be a nonnegative integer") from None
+	config["max_steps"] = integer_steps
+	theta = config.get("theta0", [-1.8, 2.3])
+	try:
+		if isinstance(theta, (str, bytes, Mapping)) or len(theta) != 2:
+			raise ValueError
+		coordinates = [float(theta[0]), float(theta[1])]
+		if not all(math.isfinite(value) for value in coordinates):
+			raise ValueError
+	except (TypeError, ValueError, IndexError, OverflowError):
+		raise ValueError("theta0 must contain exactly two finite numeric coordinates") from None
+	config["theta0"] = coordinates
+	return config
 
 
 def _optional_label(value: Any, field_name: str) -> str | None:

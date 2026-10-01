@@ -1,0 +1,11 @@
+{
+  "name": "optimizer-dynamics-ui-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/dynamics_ui.test.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "26.1.0"
+  }
+}

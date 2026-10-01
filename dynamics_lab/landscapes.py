@@ -145,13 +145,15 @@ def sample_landscape(
 	if not isinstance(config, SharpValleyConfig):
 		config = coerce_config(config)
 
-	xs = np.linspace(config.x_min, config.x_max, n)
-	ys = np.linspace(config.y_min, config.y_max, n)
-	x_grid, y_grid = np.meshgrid(xs, ys)
-	z = _numpy_loss(x_grid, y_grid, config)
-	z_finite = z[np.isfinite(z)]
-	z_clip = float(np.percentile(z_finite, 97.0))
-	levels = np.linspace(float(np.min(z_finite)), z_clip, 12)[1:]
+	with np.errstate(over="ignore", invalid="ignore"):
+		xs = np.linspace(config.x_min, config.x_max, n)
+		ys = np.linspace(config.y_min, config.y_max, n)
+		x_grid, y_grid = np.meshgrid(xs, ys)
+		z = _numpy_loss(x_grid, y_grid, config)
+	if not (np.isfinite(xs).all() and np.isfinite(ys).all() and np.isfinite(z).all()):
+		raise ValueError("Landscape coordinates and loss must be finite across the plotting bounds")
+	z_clip = float(np.percentile(z, 97.0))
+	levels = np.linspace(float(np.min(z)), z_clip, 12)[1:]
 	segments = _contour_segments(xs, ys, z, levels)
 	min_y, min_x = np.unravel_index(np.argmin(z), z.shape)
 	opt_x = float(xs[min_x])
@@ -163,7 +165,7 @@ def sample_landscape(
 		"x": xs.tolist(),
 		"y": ys.tolist(),
 		"z": z.tolist(),
-		"z_min": float(np.min(z_finite)),
+		"z_min": float(np.min(z)),
 		"z_clip": z_clip,
 		"levels": levels.tolist(),
 		"contours": segments,

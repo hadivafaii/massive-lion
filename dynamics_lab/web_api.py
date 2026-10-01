@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
+from starlette.requests import ClientDisconnect
 
 from dynamics_lab.engine import defaults_payload
 from dynamics_lab.web_simulation import LIMITS, runtime_provenance, simulate, validate_config
@@ -35,8 +36,10 @@ def create_app(static_dir: str | Path | None = None, *, allowed_origins: list[st
 
     @asynccontextmanager
     async def lifespan(_app):
-        yield
-        executor.shutdown(wait=True, cancel_futures=True)
+        try:
+            yield
+        finally:
+            await asyncio.to_thread(executor.shutdown, wait=True, cancel_futures=True)
 
     app = FastAPI(title="Dynamics Lab", docs_url=None, redoc_url=None, lifespan=lifespan)
     origins = allowed_origins if allowed_origins is not None else [
@@ -76,34 +79,52 @@ def create_app(static_dir: str | Path | None = None, *, allowed_origins: list[st
             return JSONResponse({"error": "Invalid Content-Length"}, status_code=400)
         if declared > LIMITS["request_bytes"]:
             return JSONResponse({"error": "Request is too large (maximum 64 KiB)"}, status_code=413)
-        body = bytearray()
-        async for chunk in request.stream():
-            body.extend(chunk)
-            if len(body) > LIMITS["request_bytes"]:
-                return JSONResponse({"error": "Request is too large (maximum 64 KiB)"}, status_code=413)
-        try:
-            config = validate_config(json.loads(body))
-        except (ValueError, TypeError, OverflowError, RecursionError) as error:
-            return JSONResponse({"error": str(error)}, status_code=400)
         if pending >= LIMITS["concurrent_requests"]:
             return JSONResponse({"error": "The simulator is busy. Try again in a few seconds."}, status_code=503, headers={"Retry-After": "5"})
         pending += 1
-        future = asyncio.get_running_loop().run_in_executor(executor, simulate, config)
+        submitted = False
+
+        async def read_body():
+            body = bytearray()
+            async for chunk in request.stream():
+                if len(body) + len(chunk) > LIMITS["request_bytes"]:
+                    raise HTTPException(413, "Request is too large (maximum 64 KiB)")
+                body.extend(chunk)
+            return body
+
+        def simulate_response(config):
+            # Encoding a large trace is CPU work too. Keep it off the event loop
+            # so health checks and other visitors can still receive responses.
+            result = simulate(config)
+            return JSONResponse({"snapshot": result, "provenance": provenance})
 
         def finished(_future):
             nonlocal pending
             pending -= 1
 
-        # A visitor disconnect must not free a slot while its CPU job still runs.
-        future.add_done_callback(finished)
         try:
-            result = await asyncio.shield(future)
-            return JSONResponse({"snapshot": result, "provenance": provenance})
-        except (ValueError, TypeError, KeyError, OverflowError) as error:
+            try:
+                body = await asyncio.wait_for(read_body(), timeout=LIMITS["request_timeout_seconds"])
+            except asyncio.TimeoutError:
+                return JSONResponse({"error": "Request body timed out. Please try again."}, status_code=408)
+            except ClientDisconnect:
+                return JSONResponse({"error": "Request body was interrupted"}, status_code=400)
+            config = validate_config(json.loads(body))
+            future = asyncio.get_running_loop().run_in_executor(executor, simulate_response, config)
+            submitted = True
+            # A visitor disconnect must not free a slot while its CPU job still runs.
+            future.add_done_callback(finished)
+            return await asyncio.shield(future)
+        except HTTPException as error:
+            return JSONResponse({"error": str(error.detail)}, status_code=error.status_code)
+        except (ValueError, TypeError, KeyError, OverflowError, RecursionError) as error:
             return JSONResponse({"error": str(error)}, status_code=400)
         except Exception:
             LOGGER.exception("Simulation failed")
             return JSONResponse({"error": "Simulation failed. Try a smaller run or different settings."}, status_code=500)
+        finally:
+            if not submitted:
+                pending -= 1
 
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
     async def missing_api(path: str):

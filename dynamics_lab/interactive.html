@@ -750,6 +750,8 @@ let running = false;
 let timer = null;
 let needsReset = true;
 let stepping = false;
+let startingRun = false;
+let playbackGeneration = 0;
 let colorOverrides = {};
 let nextNoiseSlot = 0;
 let nextInstanceId = 1;
@@ -1613,6 +1615,8 @@ function migrateOptimizerSpec(input, version) {
 }
 
 async function applyImportedPayload(payload) {
+	// A downloaded hosted scene contains the same versioned config envelope.
+	if (payload?.snapshot && payload?.config?.config) payload = payload.config;
 	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
 		throw new Error("The imported config must be a JSON object.");
 	}
@@ -1642,14 +1646,18 @@ async function applyImportedPayload(payload) {
 	pause();
 	$("mode").value = config.mode || "parallel";
 	// The instance selection is restored after optimizer rows are rebuilt.
-	setNumber("ensemble_count", config.ensemble_count);
-	setNumber("max_steps", config.max_steps);
-	if (Array.isArray(config.theta0)) {
-		setNumber("theta0_x", config.theta0[0]);
-		setNumber("theta0_y", config.theta0[1]);
+	setNumber("ensemble_count", config.ensemble_count ?? Number($("ensemble_count").defaultValue));
+	setNumber("max_steps", config.max_steps ?? defaults?.max_steps ?? Number($("max_steps").defaultValue));
+	const theta0 = config.theta0 ?? defaults?.theta0;
+	if (Array.isArray(theta0)) {
+		setNumber("theta0_x", theta0[0]);
+		setNumber("theta0_y", theta0[1]);
 	}
-	applyLandscapeConfig(config.landscape || {});
-	applyNoiseConfig(config.noise || {});
+	// Missing settings mean engine defaults, not values from a previous run.
+	applyLandscapeConfig({...defaults?.landscape, ...config.landscape});
+	const noise = {...defaults?.noise, ...config.noise};
+	noise.enabled = config.noise?.enabled ?? noiseConfigEnabled(noise);
+	applyNoiseConfig(noise);
 	setCheckbox("shared_lr", controls.shared_lr ?? false);
 	setNumber("shared_lr_value", controls.shared_lr_value ?? inferredSharedLearningRate(optimizerSpecs));
 	// Older saves coupled rest mass to the shared-beta toggle.
@@ -1960,22 +1968,32 @@ function snapshotAtStep(source, step) {
 	};
 }
 
-function run() {
-	if (running) return;
-	running = true;
-	$("runBtn").disabled = true;
-	const tick = async () => {
-		try {
-			await stepForward();
-		} catch (error) {
-			reportSimulationError(error);
-		}
-	};
-	timer = setInterval(tick, numberValue("delay_ms"));
-	tick();
+async function run() {
+	if (running || startingRun) return;
+	startingRun = true;
+	try {
+		// Reset pauses playback. Finish it before creating the new playback loop.
+		const reset = needsReset || snapshot === null ? resetSimulation() : null;
+		const generation = playbackGeneration;
+		await reset;
+		if (generation !== playbackGeneration) return;
+		running = true;
+		$("runBtn").disabled = true;
+		const tick = async () => {
+			try { await stepForward(); }
+			catch (error) { reportSimulationError(error); }
+		};
+		timer = setInterval(tick, Math.max(5, numberValue("delay_ms") || 35));
+		tick();
+	} catch (error) {
+		reportSimulationError(error);
+	} finally {
+		startingRun = false;
+	}
 }
 
 function pause() {
+	playbackGeneration += 1;
 	running = false;
 	$("runBtn").disabled = false;
 	if (timer !== null) clearInterval(timer);
