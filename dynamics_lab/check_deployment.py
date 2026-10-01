@@ -3,7 +3,6 @@
 import argparse
 import json
 import time
-from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from dynamics_lab.web_simulation import runtime_provenance
@@ -30,7 +29,7 @@ def check(api_url, expected_revision, origin, *, wake_timeout=150):
             health = fetch_json(api_url + '/api/health', origin=origin,
                                 timeout=max(1, min(30, deadline - time.monotonic())))
             break
-        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
+        except (OSError, json.JSONDecodeError) as error:
             if time.monotonic() >= deadline:
                 raise RuntimeError('Backend did not become available before publication') from error
             time.sleep(min(3, max(0, deadline - time.monotonic())))

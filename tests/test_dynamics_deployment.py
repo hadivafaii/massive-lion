@@ -30,6 +30,21 @@ def test_checks_matching_revision_and_real_simulation(backend):
     assert calls[1][1]['origin'] == 'https://site.example'
 
 
+def test_retries_startup_connection_reset_before_checking_revision(backend, monkeypatch):
+    fetch = check_deployment.fetch_json
+    attempts = 0
+    def starting_server(url, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ConnectionResetError('Container has not bound its port yet')
+        return fetch(url, **kwargs)
+    monkeypatch.setattr(check_deployment, 'fetch_json', starting_server)
+    monkeypatch.setattr(check_deployment.time, 'sleep', lambda _: None)
+    check_deployment.check('https://api.example', 'abc', 'https://site.example')
+    assert attempts == 3
+
+
 @pytest.mark.parametrize('damage', ['revision', 'source', 'incomplete'])
 def test_drift_or_incomplete_run_blocks_publication(backend, damage):
     health, result, calls = backend
